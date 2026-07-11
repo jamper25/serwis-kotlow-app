@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Serwis Kotłów</string>
+    <string name="title_activity_main">Serwis Kotłów</string>
+    <string name="package_name">pl.instalserwis.serwiskotlow</string>
+    <string name="custom_url_scheme">pl.instalserwis.serwiskotlow</string>
+</resources>
