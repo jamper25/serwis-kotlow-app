@@ -530,7 +530,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-09 (eksport plikowy, raport, szablon SMS)
+    Wersja: 2026-07-12-10 (naprawa duplikatów przy imporcie CSV)
   </div>
 </div>
 </div>
@@ -1572,17 +1572,37 @@ function importData(input) {
       console.log('Starting import merge. Existing clients:', existing.size);
       data.forEach(c => {
         if (!c.name) return;
-        if (!c.id) c.id = genId();
         if (!c.services) c.services = [];
-        
-        if (existing.has(c.id)) {
-          // ZAKTUALIZUJ istniejącego
-          const idx = clients.findIndex(x => x.id === c.id);
-          console.log('Updating client:', c.name);
-          clients[idx] = { ...clients[idx], ...c };
+
+        // Szukaj istniejącego klienta: najpierw po ID (import z JSON),
+        // potem po numerze telefonu, potem po imieniu i nazwisku (import z CSV zwykle nie ma ID)
+        let idx = -1;
+        if (c.id && existing.has(c.id)) {
+          idx = clients.findIndex(x => x.id === c.id);
+        }
+        if (idx === -1 && c.phone) {
+          const normPhone = c.phone.replace(/\s+/g, '');
+          idx = clients.findIndex(x => x.phone && x.phone.replace(/\s+/g, '') === normPhone);
+        }
+        if (idx === -1) {
+          const normName = c.name.trim().toLowerCase();
+          idx = clients.findIndex(x => x.name && x.name.trim().toLowerCase() === normName);
+        }
+
+        if (idx !== -1) {
+          // ZAKTUALIZUJ istniejącego - zachowaj jego ID i historię serwisów
+          console.log('Updating client (znaleziono dopasowanie):', c.name);
+          const existingClient = clients[idx];
+          clients[idx] = {
+            ...existingClient,
+            ...c,
+            id: existingClient.id,
+            services: existingClient.services && existingClient.services.length ? existingClient.services : (c.services || [])
+          };
           updated++;
         } else {
           // DODAJ nowego
+          if (!c.id) c.id = genId();
           console.log('Adding new client:', c.name);
           clients.push(c);
           added++;
