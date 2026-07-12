@@ -530,7 +530,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-10 (naprawa duplikatów przy imporcie CSV)
+    Wersja: 2026-07-12-11 (backup działa też w przeglądarce PC, scalanie historii)
   </div>
 </div>
 </div>
@@ -786,6 +786,23 @@ function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)
 function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.stringify(appointments)); }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+// Scala dwie listy historii serwisów tego samego klienta (np. z telefonu i komputera) bez duplikatów
+function mergeServiceHistories(a, b) {
+  const map = new Map();
+  const keyOf = s => s.id || `${s.date}|${s.desc||''}`;
+  (a || []).forEach(s => map.set(keyOf(s), s));
+  (b || []).forEach(s => {
+    const key = keyOf(s);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, s);
+    } else if (!existing.photo && s.photo) {
+      map.set(key, s); // preferuj wersję ze zdjęciem protokołu
+    }
+  });
+  return Array.from(map.values()).sort((x, y) => new Date(x.date) - new Date(y.date));
+}
 
 // ══════════════════════════════════════════════════
 // STATUS KLIENTA
@@ -1490,22 +1507,39 @@ function renderStats() {
 // IMPORT / EXPORT
 // ══════════════════════════════════════════════════
 // Wspólna funkcja: zapisuje plik i otwiera systemowe okno "Udostępnij / Zapisz"
+// (w aplikacji na telefonie) albo pobiera plik klasycznie (w przeglądarce na komputerze)
 async function shareGeneratedFile(fileName, content, dialogTitle) {
   const plugins = window.Capacitor && window.Capacitor.Plugins;
-  if (!plugins || !plugins.Filesystem || !plugins.Share) {
-    showToast('Ta funkcja działa tylko w zainstalowanej aplikacji', true);
-    return false;
-  }
-  const { Filesystem, Share } = plugins;
-  try {
-    await Filesystem.writeFile({ path: fileName, data: content, directory: 'CACHE', encoding: 'utf8' });
-    const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
-    await Share.share({ title: fileName, url: uri, dialogTitle: dialogTitle || 'Zapisz plik' });
-    return true;
-  } catch (e) {
-    console.log('shareGeneratedFile error', e);
-    showToast('Błąd zapisu pliku: ' + (e.message || ''), true);
-    return false;
+  if (plugins && plugins.Filesystem && plugins.Share) {
+    const { Filesystem, Share } = plugins;
+    try {
+      await Filesystem.writeFile({ path: fileName, data: content, directory: 'CACHE', encoding: 'utf8' });
+      const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
+      await Share.share({ title: fileName, url: uri, dialogTitle: dialogTitle || 'Zapisz plik' });
+      return true;
+    } catch (e) {
+      console.log('shareGeneratedFile error', e);
+      showToast('Błąd zapisu pliku: ' + (e.message || ''), true);
+      return false;
+    }
+  } else {
+    // Przeglądarka na komputerze - zwykłe pobranie pliku (Pobrane/Downloads)
+    try {
+      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      return true;
+    } catch (e) {
+      console.log('browser download error', e);
+      showToast('Błąd pobierania pliku: ' + (e.message || ''), true);
+      return false;
+    }
   }
 }
 
@@ -1597,7 +1631,7 @@ function importData(input) {
             ...existingClient,
             ...c,
             id: existingClient.id,
-            services: existingClient.services && existingClient.services.length ? existingClient.services : (c.services || [])
+            services: mergeServiceHistories(existingClient.services || [], c.services || [])
           };
           updated++;
         } else {
@@ -2155,13 +2189,31 @@ function importBackup(input) {
         const existing = new Map(clients.map(c => [c.id, c]));
         
         backup.data.forEach(importedClient => {
-          if (existing.has(importedClient.id)) {
-            // ZAKTUALIZUJ istniejącego
-            const idx = clients.findIndex(c => c.id === importedClient.id);
-            clients[idx] = { ...clients[idx], ...importedClient };
+          if (!importedClient.name) return;
+
+          // Szukaj istniejącego: po ID, potem po telefonie, potem po imieniu i nazwisku
+          let idx = -1;
+          if (importedClient.id && existing.has(importedClient.id)) {
+            idx = clients.findIndex(c => c.id === importedClient.id);
+          }
+          if (idx === -1 && importedClient.phone) {
+            const normPhone = importedClient.phone.replace(/\s+/g, '');
+            idx = clients.findIndex(c => c.phone && c.phone.replace(/\s+/g, '') === normPhone);
+          }
+          if (idx === -1) {
+            const normName = importedClient.name.trim().toLowerCase();
+            idx = clients.findIndex(c => c.name && c.name.trim().toLowerCase() === normName);
+          }
+
+          if (idx !== -1) {
+            // ZAKTUALIZUJ istniejącego - scal historię serwisów zamiast nadpisywać
+            const existingClient = clients[idx];
+            const mergedServices = mergeServiceHistories(existingClient.services || [], importedClient.services || []);
+            clients[idx] = { ...existingClient, ...importedClient, id: existingClient.id, services: mergedServices };
             updated++;
           } else {
             // DODAJ nowego
+            if (!importedClient.id) importedClient.id = genId();
             clients.push(importedClient);
             added++;
           }
