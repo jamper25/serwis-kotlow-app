@@ -509,6 +509,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
       <span class="io-icon">⚠</span> Usuń wszystkie dane
     </button>
   </div>
+
+  <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
+    Wersja: 2026-07-12-03
+  </div>
 </div>
 </div>
 
@@ -894,7 +898,15 @@ function openEditClient(id) {
 
 function deleteClientConfirm(id) {
   console.log('deleteClientConfirm called with id:', id);
-  
+
+  const client = clients.find(x => x.id === id);
+  const nazwa = client ? client.name : 'tego klienta';
+
+  if (!confirm(`Czy na pewno chcesz usunąć klienta „${nazwa}”? Tej operacji nie można cofnąć.`)) {
+    console.log('Usuwanie anulowane przez użytkownika');
+    return;
+  }
+
   const beforeCount = clients.length;
   clients = clients.filter(x => x.id !== id);
   console.log('After delete, clients count:', clients.length);
@@ -950,7 +962,9 @@ function saveClient() {
 }
 
 function deleteClient() {
-  if (!confirm('Na pewno usunąć tego klienta?')) return;
+  const client = clients.find(x => x.id === editingClientId);
+  const nazwa = client ? client.name : 'tego klienta';
+  if (!confirm(`Czy na pewno chcesz usunąć klienta „${nazwa}”? Tej operacji nie można cofnąć.`)) return;
   clients = clients.filter(x => x.id !== editingClientId);
   save();
   closeModal('modalClient');
