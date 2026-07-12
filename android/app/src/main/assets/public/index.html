@@ -484,7 +484,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
       <span class="io-icon">💾</span> Pobierz (Downloads)
     </button>
     <button class="io-btn" onclick="sendBackupEmail()" style="margin-top:6px;width:100%;background:var(--blue)">
-      <span class="io-icon">📧</span> Wyślij na email
+      <span class="io-icon">📤</span> Wyślij backup (plik)
     </button>
     <button class="io-btn" onclick="document.getElementById('backupInput').click()" style="margin-top:6px;width:100%;background:var(--green)">
       <span class="io-icon">📤</span> Przywróć backup
@@ -530,7 +530,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-07 (przewijane menu góra)
+    Wersja: 2026-07-12-08 (backup jako plik, nie tekst maila)
   </div>
 </div>
 </div>
@@ -1834,22 +1834,43 @@ function filterServiceClients() {
 // ══════════════════════════════════════════════════
 // EMAIL BACKUP
 // ══════════════════════════════════════════════════
-function sendBackupEmail() {
+async function sendBackupEmail() {
   console.log('sendBackupEmail called');
-  const backup = {
-    timestamp: new Date().toISOString(),
-    data: clients,
-    version: '2.0'
-  };
-  const backupText = JSON.stringify(backup, null, 2);
-  const subject = `Backup SerwisKotłów - ${new Date().toLocaleDateString('pl-PL')}`;
-  const body = `Backup twojej bazy danych:\n\n${backupText}\n\nData: ${new Date().toLocaleString('pl-PL')}`;
-  
-  const mailto = `mailto:Jamper3@wp.pl?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  console.log('Opening mailto:', mailto.substring(0, 50) + '...');
-  window.location = mailto;
-  
-  showToast('Otwieranie poczty...');
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (!plugins || !plugins.Filesystem || !plugins.Share) {
+    showToast('Ta funkcja działa tylko w zainstalowanej aplikacji', true);
+    return;
+  }
+  const { Filesystem, Share } = plugins;
+  try {
+    const backup = {
+      timestamp: new Date().toISOString(),
+      data: clients,
+      version: '2.0'
+    };
+    const backupText = JSON.stringify(backup, null, 2);
+    const dateStamp = new Date().toISOString().split('T')[0];
+    const fileName = `backup-serwis-kotlow-${dateStamp}.json`;
+
+    await Filesystem.writeFile({
+      path: fileName,
+      data: backupText,
+      directory: 'CACHE',
+      encoding: 'utf8'
+    });
+    const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
+
+    await Share.share({
+      title: `Backup SerwisKotłów - ${new Date().toLocaleDateString('pl-PL')}`,
+      text: `Backup bazy klientów z dnia ${new Date().toLocaleString('pl-PL')} (${clients.length} klientów). Plik w załączniku.`,
+      url: uri,
+      dialogTitle: 'Wyślij backup (mail, dysk, itp.)'
+    });
+    showToast('Backup gotowy do wysłania!');
+  } catch (e) {
+    console.log('Backup share error', e);
+    showToast('Błąd tworzenia backupu: ' + (e.message || ''), true);
+  }
 }
 
 // ══════════════════════════════════════════════════
