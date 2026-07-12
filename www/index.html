@@ -511,7 +511,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-03
+    Wersja: 2026-07-12-04 (natywne powiadomienia)
   </div>
 </div>
 </div>
@@ -2014,31 +2014,50 @@ function saveSmsTemplate() {
 }
 
 // ══════════════════════════════════════════════════
-// POWIADOMIENIA PUSH
+// POWIADOMIENIA PUSH (natywne powiadomienia Androida przez Capacitor)
 // ══════════════════════════════════════════════════
 let notifEnabled = false;
 
-function toggleNotifications() {
+function getLocalNotifPlugin() {
+  return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
+}
+
+// Zamienia dowolny string (np. id klienta) na liczbę całkowitą - wymagane jako ID powiadomienia
+function hashToInt(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 2147483647;
+}
+
+async function toggleNotifications() {
+  const plugin = getLocalNotifPlugin();
+  if (!plugin) {
+    showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
+    return;
+  }
   if (!notifEnabled) {
-    if (!('Notification' in window)) {
-      showToast('Twoja przeglądarka nie obsługuje powiadomień', true);
-      return;
-    }
-    Notification.requestPermission().then(perm => {
-      if (perm === 'granted') {
+    try {
+      const perm = await plugin.requestPermissions();
+      if (perm.display === 'granted') {
         notifEnabled = true;
         updateNotifUI();
         saveNotifSettings();
-        scheduleAllNotifications();
+        await scheduleAllNotifications();
         showToast('Powiadomienia włączone!');
       } else {
         showToast('Brak zgody na powiadomienia', true);
       }
-    });
+    } catch (e) {
+      console.log('Notif permission error', e);
+      showToast('Błąd uprawnień powiadomień', true);
+    }
   } else {
     notifEnabled = false;
     updateNotifUI();
     saveNotifSettings();
+    try { await plugin.cancel({ notifications: (await plugin.getPending()).notifications.map(n => ({ id: n.id })) }); } catch(e) {}
     showToast('Powiadomienia wyłączone');
   }
 }
@@ -2063,8 +2082,16 @@ function saveNotifSettings() {
   localStorage.setItem('notif_days', document.getElementById('notifDays')?.value || '7');
 }
 
-function loadNotifSettings() {
-  notifEnabled = localStorage.getItem('notif_enabled') === '1' && Notification.permission === 'granted';
+async function loadNotifSettings() {
+  const plugin = getLocalNotifPlugin();
+  let granted = false;
+  if (plugin) {
+    try {
+      const perm = await plugin.checkPermissions();
+      granted = perm.display === 'granted';
+    } catch (e) {}
+  }
+  notifEnabled = localStorage.getItem('notif_enabled') === '1' && granted;
   const days = localStorage.getItem('notif_days') || '7';
   const tmpl = localStorage.getItem('sms_template');
   const daysEl = document.getElementById('notifDays');
@@ -2074,49 +2101,54 @@ function loadNotifSettings() {
   updateNotifUI();
 }
 
-function scheduleAllNotifications() {
-  if (!notifEnabled || Notification.permission !== 'granted') {
+async function scheduleAllNotifications() {
+  const plugin = getLocalNotifPlugin();
+  if (!plugin) {
+    showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
+    return;
+  }
+  if (!notifEnabled) {
     showToast('Włącz najpierw powiadomienia!', true);
     return;
   }
+  // Usuń wcześniej zaplanowane, żeby uniknąć duplikatów
+  try {
+    const pending = await plugin.getPending();
+    if (pending.notifications.length) {
+      await plugin.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    }
+  } catch (e) { console.log('cancel pending error', e); }
+
   const days = parseInt(localStorage.getItem('notif_days') || '7');
   const now = new Date();
-  let count = 0;
+  const toSchedule = [];
+
   clients.forEach(c => {
     if (!c.nextService) return;
     const next = new Date(c.nextService);
     const notifDate = new Date(next);
     notifDate.setDate(notifDate.getDate() - days);
-    const msUntil = notifDate - now;
-    if (msUntil > 0) {
-      setTimeout(() => {
-        new Notification(`🔥 Serwis za ${days} dni`, {
-          body: `${c.name} · ${c.boilerModel || 'kocioł'} · ${formatDate(c.nextService)}`,
-          icon: '🔥',
-          tag: c.id,
-        });
-      }, msUntil);
-      count++;
-    }
-  });
-  showToast(`Zaplanowano ${count} powiadomień!`);
-}
-
-function checkTodayNotifications() {
-  if (!notifEnabled || Notification.permission !== 'granted') return;
-  const days = parseInt(localStorage.getItem('notif_days') || '7');
-  const now = new Date();
-  clients.forEach(c => {
-    if (!c.nextService) return;
-    const next = new Date(c.nextService);
-    const diff = Math.round((next - now) / (1000*60*60*24));
-    if (diff === days) {
-      new Notification(`🔥 Zbliża się serwis!`, {
+    notifDate.setHours(9, 0, 0, 0); // powiadomienie o 9:00 rano
+    if (notifDate.getTime() > now.getTime()) {
+      toSchedule.push({
+        id: hashToInt(c.id),
+        title: `🔥 Serwis za ${days} dni`,
         body: `${c.name} · ${c.boilerModel || 'kocioł'} · ${formatDate(c.nextService)}`,
-        tag: c.id,
+        schedule: { at: notifDate },
       });
     }
   });
+
+  if (toSchedule.length) {
+    try {
+      await plugin.schedule({ notifications: toSchedule });
+    } catch (e) {
+      console.log('schedule error', e);
+      showToast('Błąd planowania powiadomień', true);
+      return;
+    }
+  }
+  showToast(`Zaplanowano ${toSchedule.length} powiadomień!`);
 }
 
 // ══════════════════════════════════════════════════
@@ -2124,7 +2156,6 @@ function checkTodayNotifications() {
 // ══════════════════════════════════════════════════
 initCal();
 renderClients();
-checkTodayNotifications();
 
 // Demo dane jeśli baza pusta
 if (!clients.length) {
