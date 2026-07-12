@@ -511,7 +511,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-04 (natywne powiadomienia)
+    Wersja: 2026-07-12-05 (terminarz wizyt)
   </div>
 </div>
 </div>
@@ -680,19 +680,72 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 </div>
 </div>
 
+<!-- ══ MODAL: WIDOK DNIA (GODZINY 8-18) ══ -->
+<div class="modal-overlay" id="modalDayView">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="dayViewDate">Dzień</div>
+  <div id="dayViewSlots" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+  <div id="dayViewHistory" style="margin-bottom:16px"></div>
+  <button class="btn btn-secondary" onclick="closeModal('modalDayView')">Zamknij</button>
+</div>
+</div>
+
+<!-- ══ MODAL: DODAJ/EDYTUJ WIZYTĘ ══ -->
+<div class="modal-overlay" id="modalAppointment">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📅 Zaplanowana wizyta</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:12px" id="apDateTimeLabel"></div>
+
+  <div class="form-group">
+    <label class="form-label">Klient (opcjonalnie - wybierz z listy)</label>
+    <input class="form-input" id="apClientSearch" type="text" placeholder="Szukaj klienta..." oninput="filterApClients()">
+    <div id="apClientList" style="margin-top:8px;max-height:130px;overflow-y:auto"></div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Lub wpisz imię i nazwisko ręcznie</label>
+    <input class="form-input" id="apName" type="text" placeholder="np. Pan Kowalski (nowy klient)">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Telefon</label>
+    <input class="form-input" id="apPhone" type="tel" placeholder="Numer telefonu">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Notatka</label>
+    <textarea class="form-textarea" id="apNote" placeholder="np. Wymiana zaworu, awaria brak ciepłej wody..."></textarea>
+  </div>
+
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="saveAppointment()">💾 Zapisz wizytę</button>
+    <button class="btn btn-danger" id="apDeleteBtn" onclick="deleteAppointment()" style="display:none">🗑 Usuń wizytę</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalAppointment');openModal('modalDayView')">Anuluj</button>
+  </div>
+</div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════
 // DANE
 // ══════════════════════════════════════════════════
 let clients = JSON.parse(localStorage.getItem('serwis_clients') || '[]');
+let appointments = JSON.parse(localStorage.getItem('serwis_appointments') || '[]');
 let currentFilter = 'all';
 let currentClientId = null;
 let editingClientId = null;
 let calYear, calMonth;
 let currentPhotoData = null; // base64 zdjęcia protokołu
 let photoDeleted = false; // flaga czy usunięto zdjęcie
+let selectedApClientId = null;
+let editingAppointment = null;
+const DAY_START_HOUR = 8;
+const DAY_END_HOUR = 18; // ostatni slot zaczyna się o 17:00 (17-18)
 
 function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)); }
+function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.stringify(appointments)); }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
@@ -1088,6 +1141,139 @@ function initCal() {
 function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
 function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
 
+// ══════════════════════════════════════════════════
+// WIDOK DNIA - GODZINY 8-18, ZAPLANOWANE WIZYTY
+// ══════════════════════════════════════════════════
+function showDayView(dateStr) {
+  document.getElementById('dayViewDate').textContent = '📅 ' + formatDate(dateStr);
+  renderDaySlots(dateStr);
+  openModal('modalDayView');
+}
+
+function renderDaySlots(dateStr) {
+  const dayAppts = appointments.filter(a => a.date === dateStr);
+  let html = '';
+  for (let h = DAY_START_HOUR; h < DAY_END_HOUR; h++) {
+    const timeStr = String(h).padStart(2,'0') + ':00';
+    const appt = dayAppts.find(a => a.time === timeStr);
+    if (appt) {
+      const client = appt.clientId ? clients.find(c => c.id === appt.clientId) : null;
+      const label = client ? client.name : (appt.name || 'Wizyta');
+      const phone = client ? client.phone : appt.phone;
+      html += `<div onclick="openAppointmentForm('${dateStr}','${timeStr}','${appt.id}')"
+          style="display:flex;gap:10px;padding:10px;border-radius:10px;background:var(--surface2);border:1.5px solid var(--accent);cursor:pointer">
+        <div style="font-weight:700;color:var(--accent);width:52px;flex-shrink:0">${timeStr}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600">${label}</div>
+          ${phone ? `<div style="font-size:12px;color:var(--muted)">📞 ${phone}</div>` : ''}
+          ${appt.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${appt.note}</div>` : ''}
+        </div>
+      </div>`;
+    } else {
+      html += `<div onclick="openAppointmentForm('${dateStr}','${timeStr}',null)"
+          style="display:flex;gap:10px;padding:10px;border-radius:10px;background:var(--surface);border:1.5px dashed var(--border);cursor:pointer">
+        <div style="font-weight:700;color:var(--muted);width:52px;flex-shrink:0">${timeStr}</div>
+        <div style="flex:1;color:var(--muted);font-size:14px">+ Dodaj wizytę</div>
+      </div>`;
+    }
+  }
+  document.getElementById('dayViewSlots').innerHTML = html;
+
+  // Informacyjnie: wykonane serwisy tego dnia
+  const dayServices = [];
+  clients.forEach(c => {
+    (c.services || []).forEach(s => { if (s.date === dateStr) dayServices.push({ client: c, service: s }); });
+  });
+  const histEl = document.getElementById('dayViewHistory');
+  if (dayServices.length) {
+    histEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:10px 0">Wykonane serwisy tego dnia</div>` +
+      dayServices.map(item => `<div class="cal-event" onclick="closeModal('modalDayView');showDetail('${item.client.id}')">
+        <div class="cal-event-dot" style="background:var(--green)"></div>
+        <div style="flex:1"><div class="cal-event-name">${item.client.name}</div><div class="cal-event-date">${item.service.desc || 'Serwis'}</div></div>
+      </div>`).join('');
+  } else {
+    histEl.innerHTML = '';
+  }
+}
+
+function openAppointmentForm(dateStr, timeStr, apptId) {
+  editingAppointment = { date: dateStr, time: timeStr, id: apptId };
+  const appt = apptId ? appointments.find(a => a.id === apptId) : null;
+  document.getElementById('apDateTimeLabel').textContent = `${formatDate(dateStr)} · godz. ${timeStr}`;
+  document.getElementById('apClientSearch').value = '';
+  document.getElementById('apName').value = appt && !appt.clientId ? (appt.name || '') : '';
+  document.getElementById('apPhone').value = appt ? (appt.phone || '') : '';
+  document.getElementById('apNote').value = appt ? (appt.note || '') : '';
+  selectedApClientId = appt ? (appt.clientId || null) : null;
+  renderApClientList('');
+  document.getElementById('apDeleteBtn').style.display = appt ? '' : 'none';
+  closeModal('modalDayView');
+  openModal('modalAppointment');
+}
+
+function filterApClients() {
+  renderApClientList(document.getElementById('apClientSearch').value);
+}
+
+function renderApClientList(query) {
+  const q = (query || '').toLowerCase();
+  if (!q) { document.getElementById('apClientList').innerHTML = ''; return; }
+  const filtered = clients.filter(c => c.name.toLowerCase().includes(q) || c.phone?.includes(q)).slice(0, 15);
+  document.getElementById('apClientList').innerHTML = filtered.map(c => `
+    <div style="padding:10px;background:var(--surface);border-radius:8px;margin-bottom:6px;cursor:pointer;border:2px solid ${selectedApClientId === c.id ? 'var(--green)' : 'var(--border)'}"
+      onclick="pickApClient('${c.id}')">
+      <div style="font-weight:600">${c.name}</div>
+      <div style="font-size:11px;color:var(--muted)">${c.phone || ''}</div>
+    </div>
+  `).join('') || '<div style="color:var(--muted);font-size:13px;padding:6px">Brak wyników</div>';
+}
+
+function pickApClient(id) {
+  selectedApClientId = id;
+  const c = clients.find(x => x.id === id);
+  document.getElementById('apPhone').value = c?.phone || '';
+  document.getElementById('apName').value = '';
+  document.getElementById('apClientSearch').value = c?.name || '';
+  renderApClientList(c?.name || '');
+}
+
+function saveAppointment() {
+  const name = document.getElementById('apName').value.trim();
+  const phone = document.getElementById('apPhone').value.trim();
+  const note = document.getElementById('apNote').value.trim();
+  if (!selectedApClientId && !name) {
+    showToast('Wybierz klienta z listy albo wpisz imię i nazwisko', true);
+    return;
+  }
+  const { date, time, id } = editingAppointment;
+  if (id) {
+    const appt = appointments.find(a => a.id === id);
+    appt.clientId = selectedApClientId;
+    appt.name = name;
+    appt.phone = phone;
+    appt.note = note;
+  } else {
+    appointments.push({ id: genId(), date, time, clientId: selectedApClientId, name, phone, note });
+  }
+  saveAppointments();
+  closeModal('modalAppointment');
+  showToast('✅ Wizyta zapisana!');
+  renderCalendar();
+  showDayView(date);
+}
+
+function deleteAppointment() {
+  if (!editingAppointment || !editingAppointment.id) return;
+  if (!confirm('Czy na pewno chcesz usunąć tę wizytę?')) return;
+  const date = editingAppointment.date;
+  appointments = appointments.filter(a => a.id !== editingAppointment.id);
+  saveAppointments();
+  closeModal('modalAppointment');
+  showToast('Wizyta usunięta');
+  renderCalendar();
+  showDayView(date);
+}
+
 function renderCalendar() {
   const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
   document.getElementById('calMonthLabel').textContent = `${months[calMonth]} ${calYear}`;
@@ -1107,6 +1293,10 @@ function renderCalendar() {
     });
   });
 
+  // Zbierz daty zaplanowanych wizyt
+  const apptDates = {};
+  appointments.forEach(a => { apptDates[a.date] = true; });
+
   const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
 
@@ -1118,7 +1308,8 @@ function renderCalendar() {
     const isToday = dateStr === today;
     const events = serviceDates[dateStr] || [];
     const hasOverdue = events.some(c => getStatus(c) === 'overdue');
-    html += `<div class="cal-day ${isToday?'today':''} ${events.length?'has-event':''} ${hasOverdue?'overdue':''}" onclick="showDayServices('${dateStr}')">${d}</div>`;
+    const hasAppt = !!apptDates[dateStr];
+    html += `<div class="cal-day ${isToday?'today':''} ${events.length?'has-event':''} ${hasOverdue?'overdue':''}" onclick="showDayView('${dateStr}')" style="position:relative">${d}${hasAppt ? '<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--blue)"></div>' : ''}</div>`;
   }
 
   document.getElementById('calGrid').innerHTML = html;
