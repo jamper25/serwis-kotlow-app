@@ -374,6 +374,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     <button class="nav-tab active" onclick="showTab('klienci')">Klienci</button>
     <button class="nav-tab" onclick="showTab('zlecenia')">Zlecenia</button>
     <button class="nav-tab" onclick="showTab('kalendarz')">Termin</button>
+    <button class="nav-tab" onclick="showTab('wizyty')">Wizyty</button>
     <button class="nav-tab" onclick="showTab('ustawienia')">⚙</button>
   </div>
 </nav>
@@ -430,6 +431,19 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="cal-grid" id="calGrid"></div>
   <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Nadchodzące serwisy</div>
   <div class="cal-events" id="calEvents"></div>
+</div>
+
+<!-- ══ SEKCJA: WIZYTY (PLANOWANIE) ══ -->
+<div class="section" id="sec-wizyty">
+  <div style="font-size:13px;color:var(--muted);margin-bottom:12px">📞 Klient dzwoni? Zaznacz dzień i wybierz wolną godzinę (8:00–18:00), żeby umówić wizytę.</div>
+  <div class="cal-header">
+    <button class="cal-nav" onclick="wizCalPrev()">‹</button>
+    <div class="cal-month" id="wizCalMonthLabel"></div>
+    <button class="cal-nav" onclick="wizCalNext()">›</button>
+  </div>
+  <div class="cal-grid" id="wizCalGrid"></div>
+  <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Najbliższe zaplanowane wizyty</div>
+  <div class="cal-events" id="wizUpcoming"></div>
 </div>
 
 <!-- ══ SEKCJA: USTAWIENIA ══ -->
@@ -511,7 +525,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-05 (terminarz wizyt)
+    Wersja: 2026-07-12-06 (osobna zakładka Wizyty)
   </div>
 </div>
 </div>
@@ -791,6 +805,7 @@ function showTab(tab) {
   const fab = document.getElementById('fab');
   if (fab) fab.style.display = (tab === 'klienci') ? 'flex' : 'none';
   if (tab === 'kalendarz') renderCalendar();
+  if (tab === 'wizyty') renderWizCalendar();
   if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); }
   if (tab === 'klienci') renderClients();
   if (tab === 'zlecenia') renderZlecenia();
@@ -1141,6 +1156,66 @@ function initCal() {
 function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
 function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
 
+let wizCalYear, wizCalMonth;
+function initWizCal() {
+  const now = new Date();
+  wizCalYear = now.getFullYear();
+  wizCalMonth = now.getMonth();
+}
+function wizCalPrev() { wizCalMonth--; if(wizCalMonth<0){wizCalMonth=11;wizCalYear--;} renderWizCalendar(); }
+function wizCalNext() { wizCalMonth++; if(wizCalMonth>11){wizCalMonth=0;wizCalYear++;} renderWizCalendar(); }
+
+function renderWizCalendar() {
+  const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+  document.getElementById('wizCalMonthLabel').textContent = `${months[wizCalMonth]} ${wizCalYear}`;
+
+  const firstDay = new Date(wizCalYear, wizCalMonth, 1).getDay();
+  const daysInMonth = new Date(wizCalYear, wizCalMonth+1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+
+  const apptDates = {};
+  appointments.forEach(a => { (apptDates[a.date] = apptDates[a.date] || []).push(a); });
+
+  const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
+  let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+
+  const start = firstDay === 0 ? 6 : firstDay - 1;
+  for (let i = 0; i < start; i++) html += `<div class="cal-day other"></div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${wizCalYear}-${String(wizCalMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === today;
+    const count = (apptDates[dateStr] || []).length;
+    html += `<div class="cal-day ${isToday?'today':''} ${count?'has-event':''}" onclick="showDayView('${dateStr}')" style="position:relative">${d}${count ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--blue);font-weight:700">${count}</div>` : ''}</div>`;
+  }
+
+  document.getElementById('wizCalGrid').innerHTML = html;
+
+  // Najbliższe zaplanowane wizyty (od dzisiaj)
+  const upcoming = appointments
+    .filter(a => a.date >= today)
+    .sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time))
+    .slice(0, 15);
+
+  const upEl = document.getElementById('wizUpcoming');
+  if (!upcoming.length) {
+    upEl.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Brak zaplanowanych wizyt</div></div>';
+    return;
+  }
+  upEl.innerHTML = upcoming.map(a => {
+    const client = a.clientId ? clients.find(c => c.id === a.clientId) : null;
+    const label = client ? client.name : (a.name || 'Wizyta');
+    const phone = client ? client.phone : a.phone;
+    return `<div class="cal-event" onclick="openAppointmentForm('${a.date}','${a.time}','${a.id}')">
+      <div class="cal-event-dot" style="background:var(--blue)"></div>
+      <div style="flex:1">
+        <div class="cal-event-name">${label}</div>
+        <div class="cal-event-date">${formatDate(a.date)} · godz. ${a.time}${phone ? ' · 📞 '+phone : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ══════════════════════════════════════════════════
 // WIDOK DNIA - GODZINY 8-18, ZAPLANOWANE WIZYTY
 // ══════════════════════════════════════════════════
@@ -1258,7 +1333,7 @@ function saveAppointment() {
   saveAppointments();
   closeModal('modalAppointment');
   showToast('✅ Wizyta zapisana!');
-  renderCalendar();
+  renderWizCalendar();
   showDayView(date);
 }
 
@@ -1270,7 +1345,7 @@ function deleteAppointment() {
   saveAppointments();
   closeModal('modalAppointment');
   showToast('Wizyta usunięta');
-  renderCalendar();
+  renderWizCalendar();
   showDayView(date);
 }
 
@@ -1293,10 +1368,6 @@ function renderCalendar() {
     });
   });
 
-  // Zbierz daty zaplanowanych wizyt
-  const apptDates = {};
-  appointments.forEach(a => { apptDates[a.date] = true; });
-
   const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
 
@@ -1308,8 +1379,7 @@ function renderCalendar() {
     const isToday = dateStr === today;
     const events = serviceDates[dateStr] || [];
     const hasOverdue = events.some(c => getStatus(c) === 'overdue');
-    const hasAppt = !!apptDates[dateStr];
-    html += `<div class="cal-day ${isToday?'today':''} ${events.length?'has-event':''} ${hasOverdue?'overdue':''}" onclick="showDayView('${dateStr}')" style="position:relative">${d}${hasAppt ? '<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--blue)"></div>' : ''}</div>`;
+    html += `<div class="cal-day ${isToday?'today':''} ${events.length?'has-event':''} ${hasOverdue?'overdue':''}" onclick="showDayServices('${dateStr}')">${d}</div>`;
   }
 
   document.getElementById('calGrid').innerHTML = html;
@@ -2346,6 +2416,7 @@ async function scheduleAllNotifications() {
 // INIT
 // ══════════════════════════════════════════════════
 initCal();
+initWizCal();
 renderClients();
 
 // Demo dane jeśli baza pusta
