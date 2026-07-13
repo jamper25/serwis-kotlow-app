@@ -212,6 +212,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   width:4px;height:4px;border-radius:50%;background:var(--amber);
 }
 .cal-day.has-event.overdue::after{background:var(--red)}
+.cal-day.selected{border:2px solid var(--blue)}
 .cal-day:hover:not(.today){background:var(--surface2)}
 .cal-events{display:flex;flex-direction:column;gap:8px}
 .cal-event{
@@ -447,8 +448,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     <button class="cal-nav" onclick="wizCalNext()">›</button>
   </div>
   <div class="cal-grid" id="wizCalGrid"></div>
-  <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Najbliższe zaplanowane wizyty</div>
-  <div class="cal-events" id="wizUpcoming"></div>
+
+  <div id="wizSelectedDayLabel" style="font-size:15px;font-weight:800;margin:18px 0 10px"></div>
+  <div id="wizSelectedDaySlots" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+  <div id="wizSelectedDayHistory"></div>
 </div>
 
 <!-- ══ SEKCJA: USTAWIENIA ══ -->
@@ -530,7 +533,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-13 (diagnostyka importu wizyt + odświeżanie widoku)
+    Wersja: 2026-07-12-14 (Wizyty: tylko wybrany dzień, pełny serwis przy nowym kliencie)
   </div>
 </div>
 </div>
@@ -611,6 +614,46 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
       <option value="12" selected>Co rok</option>
       <option value="24">Co 2 lata</option>
     </select>
+  </div>
+
+  <div id="firstServiceSection">
+  <div class="form-section">Dane pierwszego serwisu (jeśli wykonujesz go teraz)</div>
+  <div class="form-group">
+    <label class="form-label">Opis wykonanych prac</label>
+    <textarea class="form-textarea" id="fServiceDesc" placeholder="np. Czyszczenie palnika, wymiana uszczelek, regulacja ciśnienia..."></textarea>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Koszt robocizny (zł)</label>
+      <input class="form-input" id="fServiceCost" type="number" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Koszt części (zł)</label>
+      <input class="form-input" id="fServiceParts" type="number" placeholder="0">
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Uwagi serwisowe</label>
+    <textarea class="form-textarea" id="fServiceNotes" placeholder="Dodatkowe uwagi do tego serwisu..."></textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">📄 Zdjęcie protokołu → PDF</label>
+    <div class="proto-wrap">
+      <div class="proto-preview" id="fProtoPreview">
+        <div class="proto-placeholder">
+          <div class="pi">📄</div>
+          <div class="pt">Dodaj zdjęcie protokołu</div>
+        </div>
+      </div>
+      <input type="file" id="fProtoInput" accept="image/*" style="display:none" onchange="handleNewClientPhoto(this)">
+      <input type="file" id="fProtoCamera" accept="image/*" capture="environment" style="display:none" onchange="handleNewClientPhoto(this)">
+      <div class="proto-actions" style="margin-top:8px">
+        <button class="proto-btn" onclick="document.getElementById('fProtoCamera').click()">📸 Aparat</button>
+        <button class="proto-btn" onclick="document.getElementById('fProtoInput').click()">🖼 Galeria</button>
+        <button class="proto-btn remove" id="fProtoRemoveBtn" style="display:none" onclick="removeNewClientPhoto()">🗑 Usuń</button>
+      </div>
+    </div>
+  </div>
   </div>
 
   <div class="form-section">Notatki</div>
@@ -699,17 +742,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 </div>
 </div>
 
-<!-- ══ MODAL: WIDOK DNIA (GODZINY 8-18) ══ -->
-<div class="modal-overlay" id="modalDayView">
-<div class="modal">
-  <div class="modal-handle"></div>
-  <div class="modal-title" id="dayViewDate">Dzień</div>
-  <div id="dayViewSlots" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
-  <div id="dayViewHistory" style="margin-bottom:16px"></div>
-  <button class="btn btn-secondary" onclick="closeModal('modalDayView')">Zamknij</button>
-</div>
-</div>
-
 <!-- ══ MODAL: DODAJ/EDYTUJ WIZYTĘ ══ -->
 <div class="modal-overlay" id="modalAppointment">
 <div class="modal">
@@ -741,7 +773,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
     <button class="btn btn-primary" onclick="saveAppointment()">💾 Zapisz wizytę</button>
     <button class="btn btn-danger" id="apDeleteBtn" onclick="deleteAppointment()" style="display:none">🗑 Usuń wizytę</button>
-    <button class="btn btn-secondary" onclick="closeModal('modalAppointment');openModal('modalDayView')">Anuluj</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalAppointment')">Anuluj</button>
   </div>
 </div>
 </div>
@@ -786,6 +818,46 @@ function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)
 function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.stringify(appointments)); }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+// Zdjęcie protokołu przy tworzeniu nowego klienta (pierwszy serwis) - osobne od głównego formularza serwisu
+let newClientPhotoData = null;
+
+function handleNewClientPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    compressImage(e.target.result, (compressed) => {
+      newClientPhotoData = compressed;
+      const preview = document.getElementById('fProtoPreview');
+      preview.innerHTML = `<img src="${newClientPhotoData}" style="max-height:220px;width:100%;object-fit:contain;border-radius:8px">`;
+      const removeBtn = document.getElementById('fProtoRemoveBtn');
+      if (removeBtn) removeBtn.style.display = 'flex';
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeNewClientPhoto() {
+  newClientPhotoData = null;
+  const preview = document.getElementById('fProtoPreview');
+  if (preview) preview.innerHTML = `<div class="proto-placeholder"><div class="pi">📄</div><div class="pt">Dodaj zdjęcie protokołu</div></div>`;
+  const removeBtn = document.getElementById('fProtoRemoveBtn');
+  if (removeBtn) removeBtn.style.display = 'none';
+  const input = document.getElementById('fProtoInput');
+  if (input) input.value = '';
+  const cam = document.getElementById('fProtoCamera');
+  if (cam) cam.value = '';
+}
+
+function resetNewClientServiceForm() {
+  newClientPhotoData = null;
+  document.getElementById('fServiceDesc').value = '';
+  document.getElementById('fServiceCost').value = '';
+  document.getElementById('fServiceParts').value = '';
+  document.getElementById('fServiceNotes').value = '';
+  removeNewClientPhoto();
+}
 
 // Scala dwie listy historii serwisów tego samego klienta (np. z telefonu i komputera) bez duplikatów
 function mergeServiceHistories(a, b) {
@@ -995,6 +1067,8 @@ function openAddClient() {
     document.getElementById(id).value = '';
   });
   document.getElementById('fInterval').value = '12';
+  resetNewClientServiceForm();
+  document.getElementById('firstServiceSection').style.display = '';
   openModal('modalClient');
 }
 
@@ -1018,6 +1092,7 @@ function openEditClient(id) {
   document.getElementById('fNextService').value = c.nextService || '';
   document.getElementById('fInterval').value = c.interval || '12';
   document.getElementById('fNotes').value = c.notes || '';
+  document.getElementById('firstServiceSection').style.display = 'none';
   openModal('modalClient');
 }
 
@@ -1076,8 +1151,29 @@ function saveClient() {
     showDetail(editingClientId);
   } else {
     data.id = genId();
-    data.services = [];
     data.createdAt = new Date().toISOString();
+
+    // Jeśli wpisano dane pierwszego serwisu - utwórz pełny wpis w historii (zamiast podwójnej roboty)
+    const sDesc = document.getElementById('fServiceDesc').value.trim();
+    const sCost = document.getElementById('fServiceCost').value.trim();
+    const sParts = document.getElementById('fServiceParts').value.trim();
+    const sNotes = document.getElementById('fServiceNotes').value.trim();
+    const hasServiceData = sDesc || sCost || sParts || sNotes || newClientPhotoData || data.lastService;
+
+    if (hasServiceData) {
+      data.services = [{
+        id: genId(),
+        date: data.lastService || new Date().toISOString().split('T')[0],
+        desc: sDesc,
+        cost: sCost,
+        parts: sParts,
+        notes: sNotes,
+        photo: newClientPhotoData || null
+      }];
+    } else {
+      data.services = [];
+    }
+
     clients.push(data);
     showToast('Klient dodany!');
     closeModal('modalClient');
@@ -1214,13 +1310,21 @@ function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCa
 function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
 
 let wizCalYear, wizCalMonth;
+let selectedWizDay = null;
+
 function initWizCal() {
   const now = new Date();
   wizCalYear = now.getFullYear();
   wizCalMonth = now.getMonth();
+  selectedWizDay = now.toISOString().split('T')[0];
 }
 function wizCalPrev() { wizCalMonth--; if(wizCalMonth<0){wizCalMonth=11;wizCalYear--;} renderWizCalendar(); }
 function wizCalNext() { wizCalMonth++; if(wizCalMonth>11){wizCalMonth=0;wizCalYear++;} renderWizCalendar(); }
+
+function selectWizDay(dateStr) {
+  selectedWizDay = dateStr;
+  renderWizCalendar();
+}
 
 function renderWizCalendar() {
   const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
@@ -1242,47 +1346,24 @@ function renderWizCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${wizCalYear}-${String(wizCalMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = dateStr === today;
+    const isSelected = dateStr === selectedWizDay;
     const count = (apptDates[dateStr] || []).length;
-    html += `<div class="cal-day ${isToday?'today':''} ${count?'has-event':''}" onclick="showDayView('${dateStr}')" style="position:relative">${d}${count ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--blue);font-weight:700">${count}</div>` : ''}</div>`;
+    html += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''} ${count?'has-event':''}" onclick="selectWizDay('${dateStr}')" style="position:relative">${d}${count ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--blue);font-weight:700">${count}</div>` : ''}</div>`;
   }
 
   document.getElementById('wizCalGrid').innerHTML = html;
 
-  // Najbliższe zaplanowane wizyty (od dzisiaj)
-  const upcoming = appointments
-    .filter(a => a.date >= today)
-    .sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time))
-    .slice(0, 15);
-
-  const upEl = document.getElementById('wizUpcoming');
-  if (!upcoming.length) {
-    upEl.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Brak zaplanowanych wizyt</div></div>';
-    return;
-  }
-  upEl.innerHTML = upcoming.map(a => {
-    const client = a.clientId ? clients.find(c => c.id === a.clientId) : null;
-    const label = client ? client.name : (a.name || 'Wizyta');
-    const phone = client ? client.phone : a.phone;
-    return `<div class="cal-event" onclick="openAppointmentForm('${a.date}','${a.time}','${a.id}')">
-      <div class="cal-event-dot" style="background:var(--blue)"></div>
-      <div style="flex:1">
-        <div class="cal-event-name">${label}</div>
-        <div class="cal-event-date">${formatDate(a.date)} · godz. ${a.time}${phone ? ' · 📞 '+phone : ''}</div>
-      </div>
-    </div>`;
-  }).join('');
+  // Jeśli wybrany dzień jest poza aktualnie wyświetlanym miesiącem, i tak go pokazujemy poniżej
+  renderSelectedWizDay();
 }
 
 // ══════════════════════════════════════════════════
-// WIDOK DNIA - GODZINY 8-18, ZAPLANOWANE WIZYTY
+// WYBRANY DZIEŃ - GODZINY 8-18, ZAPLANOWANE WIZYTY
 // ══════════════════════════════════════════════════
-function showDayView(dateStr) {
-  document.getElementById('dayViewDate').textContent = '📅 ' + formatDate(dateStr);
-  renderDaySlots(dateStr);
-  openModal('modalDayView');
-}
+function renderSelectedWizDay() {
+  const dateStr = selectedWizDay;
+  document.getElementById('wizSelectedDayLabel').textContent = '📅 ' + formatDate(dateStr);
 
-function renderDaySlots(dateStr) {
   const dayAppts = appointments.filter(a => a.date === dateStr);
   let html = '';
   for (let h = DAY_START_HOUR; h < DAY_END_HOUR; h++) {
@@ -1309,17 +1390,17 @@ function renderDaySlots(dateStr) {
       </div>`;
     }
   }
-  document.getElementById('dayViewSlots').innerHTML = html;
+  document.getElementById('wizSelectedDaySlots').innerHTML = html;
 
   // Informacyjnie: wykonane serwisy tego dnia
   const dayServices = [];
   clients.forEach(c => {
     (c.services || []).forEach(s => { if (s.date === dateStr) dayServices.push({ client: c, service: s }); });
   });
-  const histEl = document.getElementById('dayViewHistory');
+  const histEl = document.getElementById('wizSelectedDayHistory');
   if (dayServices.length) {
-    histEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:10px 0">Wykonane serwisy tego dnia</div>` +
-      dayServices.map(item => `<div class="cal-event" onclick="closeModal('modalDayView');showDetail('${item.client.id}')">
+    histEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 10px">Wykonane serwisy tego dnia</div>` +
+      dayServices.map(item => `<div class="cal-event" onclick="showDetail('${item.client.id}')">
         <div class="cal-event-dot" style="background:var(--green)"></div>
         <div style="flex:1"><div class="cal-event-name">${item.client.name}</div><div class="cal-event-date">${item.service.desc || 'Serwis'}</div></div>
       </div>`).join('');
@@ -1339,7 +1420,6 @@ function openAppointmentForm(dateStr, timeStr, apptId) {
   selectedApClientId = appt ? (appt.clientId || null) : null;
   renderApClientList('');
   document.getElementById('apDeleteBtn').style.display = appt ? '' : 'none';
-  closeModal('modalDayView');
   openModal('modalAppointment');
 }
 
@@ -1390,8 +1470,8 @@ function saveAppointment() {
   saveAppointments();
   closeModal('modalAppointment');
   showToast('✅ Wizyta zapisana!');
+  selectedWizDay = date;
   renderWizCalendar();
-  showDayView(date);
 }
 
 function deleteAppointment() {
@@ -1402,8 +1482,8 @@ function deleteAppointment() {
   saveAppointments();
   closeModal('modalAppointment');
   showToast('Wizyta usunięta');
+  selectedWizDay = date;
   renderWizCalendar();
-  showDayView(date);
 }
 
 function renderCalendar() {
