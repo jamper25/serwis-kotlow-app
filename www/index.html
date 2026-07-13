@@ -530,7 +530,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-12 (backup zawiera też wizyty/terminarz)
+    Wersja: 2026-07-12-13 (diagnostyka importu wizyt + odświeżanie widoku)
   </div>
 </div>
 </div>
@@ -2251,7 +2251,9 @@ function importBackup(input) {
         
         save();
         renderClients();
-        const apptMsg = (apptAdded || apptUpdated) ? ` + wizyty: ${apptAdded} nowych, ${apptUpdated} zaktualizowanych` : '';
+        if (document.getElementById('wizCalGrid')) renderWizCalendar();
+        if (document.getElementById('calGrid')) renderCalendar();
+        const apptMsg = (apptAdded || apptUpdated) ? ` + wizyty: ${apptAdded} nowych, ${apptUpdated} zaktualizowanych` : ' (brak wizyt w tym backupie)';
         const msg = added > 0 && updated > 0 
           ? `✅ Dodano ${added}, Zaktualizowano ${updated}!${apptMsg}`
           : added > 0 
