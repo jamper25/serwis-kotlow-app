@@ -530,7 +530,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-11 (backup działa też w przeglądarce PC, scalanie historii)
+    Wersja: 2026-07-12-12 (backup zawiera też wizyty/terminarz)
   </div>
 </div>
 </div>
@@ -1940,7 +1940,8 @@ async function sendBackupEmail() {
   const backup = {
     timestamp: new Date().toISOString(),
     data: clients,
-    version: '2.0'
+    appointments: appointments,
+    version: '2.1'
   };
   const dateStamp = new Date().toISOString().split('T')[0];
   const fileName = `backup-serwis-kotlow-${dateStamp}.json`;
@@ -2113,7 +2114,8 @@ function createNewBackup() {
   const backup = {
     timestamp: new Date().toISOString(),
     data: clients,
-    version: '2.0'
+    appointments: appointments,
+    version: '2.1'
   };
   localStorage.setItem('backup_' + Date.now(), JSON.stringify(backup));
   showToast('Backup utworzony lokalnie!');
@@ -2124,7 +2126,8 @@ function copyBackupToClipboard() {
   const backup = {
     timestamp: new Date().toISOString(),
     data: clients,
-    version: '2.0'
+    appointments: appointments,
+    version: '2.1'
   };
   const backupText = JSON.stringify(backup, null, 2);
   
@@ -2167,7 +2170,8 @@ function createBackup() {
   const backup = {
     timestamp: new Date().toISOString(),
     data: clients,
-    version: '2.0'
+    appointments: appointments,
+    version: '2.1'
   };
   const a = document.createElement('a');
   a.href = 'data:application/json,' + JSON.stringify(backup, null, 2);
@@ -2218,16 +2222,43 @@ function importBackup(input) {
             added++;
           }
         });
+
+        // Scal zaplanowane wizyty (jeśli backup je zawiera)
+        let apptAdded = 0, apptUpdated = 0;
+        if (Array.isArray(backup.appointments)) {
+          const existingAppt = new Map(appointments.map(a => [a.id, a]));
+          backup.appointments.forEach(importedAppt => {
+            if (!importedAppt.date || !importedAppt.time) return;
+            let aIdx = -1;
+            if (importedAppt.id && existingAppt.has(importedAppt.id)) {
+              aIdx = appointments.findIndex(a => a.id === importedAppt.id);
+            }
+            if (aIdx === -1) {
+              // ten sam dzień i godzina = ta sama wizyta (nawet jeśli inne ID)
+              aIdx = appointments.findIndex(a => a.date === importedAppt.date && a.time === importedAppt.time);
+            }
+            if (aIdx !== -1) {
+              appointments[aIdx] = { ...appointments[aIdx], ...importedAppt, id: appointments[aIdx].id };
+              apptUpdated++;
+            } else {
+              if (!importedAppt.id) importedAppt.id = genId();
+              appointments.push(importedAppt);
+              apptAdded++;
+            }
+          });
+          saveAppointments();
+        }
         
         save();
         renderClients();
+        const apptMsg = (apptAdded || apptUpdated) ? ` + wizyty: ${apptAdded} nowych, ${apptUpdated} zaktualizowanych` : '';
         const msg = added > 0 && updated > 0 
-          ? `✅ Dodano ${added}, Zaktualizowano ${updated}!`
+          ? `✅ Dodano ${added}, Zaktualizowano ${updated}!${apptMsg}`
           : added > 0 
-          ? `✅ Dodano ${added} klientów!`
+          ? `✅ Dodano ${added} klientów!${apptMsg}`
           : updated > 0
-          ? `✅ Zaktualizowano ${updated} klientów!`
-          : '✅ Synchronizacja gotowa!';
+          ? `✅ Zaktualizowano ${updated} klientów!${apptMsg}`
+          : `✅ Synchronizacja gotowa!${apptMsg}`;
         showToast(msg);
         input.value = '';
       } else {
