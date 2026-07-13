@@ -533,7 +533,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-14 (Wizyty: tylko wybrany dzień, pełny serwis przy nowym kliencie)
+    Wersja: 2026-07-12-15 (przeterminowani liczeni tylko od ostatniej wizyty)
   </div>
 </div>
 </div>
@@ -881,12 +881,17 @@ function mergeServiceHistories(a, b) {
 // ══════════════════════════════════════════════════
 function getStatus(client) {
   const now = new Date();
-  // Ponad 12 miesięcy od ostatniego serwisu = zawsze przeterminowany
+
+  // Jeśli klient miał już jakiś serwis - status liczymy WYŁĄCZNIE od daty ostatniej wizyty
   if (client.lastService) {
     const last = new Date(client.lastService);
     const monthsSince = (now - last) / (1000 * 60 * 60 * 24 * 30.44);
     if (monthsSince > 12) return 'overdue';
+    if (monthsSince > 11) return 'soon';
+    return 'ok';
   }
+
+  // Brak historii serwisu - jedyny punkt odniesienia to zaplanowany termin
   if (!client.nextService) return 'new';
   const next = new Date(client.nextService);
   const diff = (next - now) / (1000 * 60 * 60 * 24);
