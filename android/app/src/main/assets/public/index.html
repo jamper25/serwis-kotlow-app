@@ -533,7 +533,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-15 (przeterminowani liczeni tylko od ostatniej wizyty)
+    Wersja: 2026-07-12-16 (naprawa przesunięcia dni w kalendarzu o 1)
   </div>
 </div>
 </div>
@@ -1345,7 +1345,7 @@ function renderWizCalendar() {
   const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
 
-  const start = firstDay === 0 ? 6 : firstDay - 1;
+  const start = firstDay; // Nd=0 jest pierwszą kolumną w nagłówku, więc bez konwersji
   for (let i = 0; i < start; i++) html += `<div class="cal-day other"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -1513,7 +1513,7 @@ function renderCalendar() {
   const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
 
-  const start = firstDay === 0 ? 6 : firstDay - 1;
+  const start = firstDay; // Nd=0 jest pierwszą kolumną w nagłówku, więc bez konwersji
   for (let i = 0; i < start; i++) html += `<div class="cal-day other"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
