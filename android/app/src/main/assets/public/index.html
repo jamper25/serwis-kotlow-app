@@ -213,7 +213,23 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 }
 .cal-day.has-event.overdue::after{background:var(--red)}
 .cal-day.selected{border:2px solid var(--blue)}
+.cal-day.drop-target{background:var(--blue)33;box-shadow:0 0 0 2px var(--blue)}
 .cal-day:hover:not(.today){background:var(--surface2)}
+
+.wiz-slot-row{
+  display:flex;gap:10px;padding:10px;border-radius:10px;cursor:pointer;
+  transition:background .15s,box-shadow .15s;touch-action:pan-y;
+}
+.wiz-slot-row.drop-target{background:var(--blue)22;box-shadow:0 0 0 2px var(--blue)}
+.wiz-tile{
+  display:flex;gap:10px;padding:10px;border-radius:10px;width:100%;
+  background:var(--surface2);border:1.5px solid var(--accent);cursor:grab;touch-action:none;
+}
+.wiz-tile.dragging-source{opacity:.25}
+.wiz-ghost{
+  position:fixed;z-index:9999;pointer-events:none;opacity:.95;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);border-radius:10px;
+}
 .cal-events{display:flex;flex-direction:column;gap:8px}
 .cal-event{
   background:var(--surface);border:1px solid var(--border);
@@ -533,7 +549,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-16 (naprawa przesunięcia dni w kalendarzu o 1)
+    Wersja: 2026-07-12-17 (przeciąganie kafelków wizyt - zmiana godziny/dnia)
   </div>
 </div>
 </div>
@@ -1353,7 +1369,7 @@ function renderWizCalendar() {
     const isToday = dateStr === today;
     const isSelected = dateStr === selectedWizDay;
     const count = (apptDates[dateStr] || []).length;
-    html += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''} ${count?'has-event':''}" onclick="selectWizDay('${dateStr}')" style="position:relative">${d}${count ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--blue);font-weight:700">${count}</div>` : ''}</div>`;
+    html += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''} ${count?'has-event':''}" data-drop-date="${dateStr}" onclick="selectWizDay('${dateStr}')" style="position:relative">${d}${count ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--blue);font-weight:700">${count}</div>` : ''}</div>`;
   }
 
   document.getElementById('wizCalGrid').innerHTML = html;
@@ -1367,7 +1383,7 @@ function renderWizCalendar() {
 // ══════════════════════════════════════════════════
 function renderSelectedWizDay() {
   const dateStr = selectedWizDay;
-  document.getElementById('wizSelectedDayLabel').textContent = '📅 ' + formatDate(dateStr);
+  document.getElementById('wizSelectedDayLabel').textContent = '📅 ' + formatDate(dateStr) + ' — przytrzymaj i przeciągnij, żeby zmienić termin';
 
   const dayAppts = appointments.filter(a => a.date === dateStr);
   let html = '';
@@ -1378,18 +1394,19 @@ function renderSelectedWizDay() {
       const client = appt.clientId ? clients.find(c => c.id === appt.clientId) : null;
       const label = client ? client.name : (appt.name || 'Wizyta');
       const phone = client ? client.phone : appt.phone;
-      html += `<div onclick="openAppointmentForm('${dateStr}','${timeStr}','${appt.id}')"
-          style="display:flex;gap:10px;padding:10px;border-radius:10px;background:var(--surface2);border:1.5px solid var(--accent);cursor:pointer">
-        <div style="font-weight:700;color:var(--accent);width:52px;flex-shrink:0">${timeStr}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600">${label}</div>
-          ${phone ? `<div style="font-size:12px;color:var(--muted)">📞 ${phone}</div>` : ''}
-          ${appt.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${appt.note}</div>` : ''}
+      html += `<div class="wiz-slot-row" data-drop-date="${dateStr}" data-drop-time="${timeStr}">
+        <div class="wiz-tile" data-appt-id="${appt.id}" onclick="openAppointmentForm('${dateStr}','${timeStr}','${appt.id}')">
+          <div style="font-weight:700;color:var(--accent);width:52px;flex-shrink:0">${timeStr}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600">${label}</div>
+            ${phone ? `<div style="font-size:12px;color:var(--muted)">📞 ${phone}</div>` : ''}
+            ${appt.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${appt.note}</div>` : ''}
+          </div>
         </div>
       </div>`;
     } else {
-      html += `<div onclick="openAppointmentForm('${dateStr}','${timeStr}',null)"
-          style="display:flex;gap:10px;padding:10px;border-radius:10px;background:var(--surface);border:1.5px dashed var(--border);cursor:pointer">
+      html += `<div class="wiz-slot-row" data-drop-date="${dateStr}" data-drop-time="${timeStr}" onclick="openAppointmentForm('${dateStr}','${timeStr}',null)"
+          style="background:var(--surface);border:1.5px dashed var(--border)">
         <div style="font-weight:700;color:var(--muted);width:52px;flex-shrink:0">${timeStr}</div>
         <div style="flex:1;color:var(--muted);font-size:14px">+ Dodaj wizytę</div>
       </div>`;
@@ -1412,6 +1429,117 @@ function renderSelectedWizDay() {
   } else {
     histEl.innerHTML = '';
   }
+}
+
+// ══════════════════════════════════════════════════
+// PRZECIĄGANIE KAFELKÓW WIZYT (zmiana godziny lub dnia)
+// ══════════════════════════════════════════════════
+let dragState = null;
+
+function initDragHandlers() {
+  document.addEventListener('pointerdown', onTileDragStart);
+  document.addEventListener('pointermove', onTileDragMove, { passive: false });
+  document.addEventListener('pointerup', onTileDragEnd);
+  document.addEventListener('pointercancel', onTileDragEnd);
+}
+
+function onTileDragStart(e) {
+  const tile = e.target.closest('.wiz-tile');
+  if (!tile) return;
+  const apptId = tile.dataset.apptId;
+  if (!apptId) return;
+  const startX = e.clientX, startY = e.clientY;
+  const timer = setTimeout(() => { beginDrag(tile, apptId, startX, startY); }, 320);
+  dragState = { pending: true, timer, tile, apptId, startX, startY };
+}
+
+function onTileDragMove(e) {
+  if (!dragState) return;
+  if (dragState.pending) {
+    const dx = Math.abs(e.clientX - dragState.startX);
+    const dy = Math.abs(e.clientY - dragState.startY);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(dragState.timer);
+      dragState = null;
+    }
+    return;
+  }
+  if (dragState.active) {
+    e.preventDefault();
+    dragState.ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+    dragState.ghost.style.top = (e.clientY - dragState.offsetY) + 'px';
+    updateDropTargetHighlight(e.clientX, e.clientY);
+  }
+}
+
+function beginDrag(tile, apptId, x, y) {
+  const rect = tile.getBoundingClientRect();
+  const ghost = tile.cloneNode(true);
+  ghost.classList.add('wiz-ghost');
+  ghost.style.width = rect.width + 'px';
+  ghost.style.left = rect.left + 'px';
+  ghost.style.top = rect.top + 'px';
+  ghost.style.pointerEvents = 'none';
+  document.body.appendChild(ghost);
+  tile.classList.add('dragging-source');
+  if (navigator.vibrate) navigator.vibrate(15);
+  dragState = {
+    active: true,
+    apptId,
+    ghost,
+    offsetX: x - rect.left,
+    offsetY: y - rect.top,
+    sourceTile: tile,
+    currentDrop: null
+  };
+}
+
+function updateDropTargetHighlight(x, y) {
+  document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+  const el = document.elementFromPoint(x, y);
+  const dropZone = el && el.closest('[data-drop-date]');
+  if (dropZone) dropZone.classList.add('drop-target');
+  dragState.currentDrop = dropZone;
+}
+
+function onTileDragEnd(e) {
+  if (!dragState) return;
+  if (dragState.pending) {
+    clearTimeout(dragState.timer);
+    dragState = null;
+    return;
+  }
+  if (dragState.active) {
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    dragState.ghost.remove();
+    dragState.sourceTile.classList.remove('dragging-source');
+    const dropZone = dragState.currentDrop;
+    if (dropZone) {
+      const newDate = dropZone.dataset.dropDate;
+      const newTime = dropZone.dataset.dropTime || null;
+      applyAppointmentMove(dragState.apptId, newDate, newTime);
+    }
+  }
+  dragState = null;
+}
+
+function applyAppointmentMove(apptId, newDate, newTime) {
+  const appt = appointments.find(a => a.id === apptId);
+  if (!appt) return;
+  const targetTime = newTime || appt.time;
+  if (newDate === appt.date && targetTime === appt.time) return;
+
+  const conflict = appointments.find(a => a.id !== apptId && a.date === newDate && a.time === targetTime);
+  if (conflict) {
+    showToast('❌ Ta godzina jest już zajęta w wybranym dniu', true);
+    return;
+  }
+  appt.date = newDate;
+  appt.time = targetTime;
+  saveAppointments();
+  showToast(`✅ Przeniesiono na ${formatDate(newDate)}, godz. ${targetTime}`);
+  selectedWizDay = newDate;
+  renderWizCalendar();
 }
 
 function openAppointmentForm(dateStr, timeStr, apptId) {
@@ -2693,6 +2821,7 @@ async function scheduleAllNotifications() {
 // ══════════════════════════════════════════════════
 initCal();
 initWizCal();
+initDragHandlers();
 renderClients();
 
 // Demo dane jeśli baza pusta
