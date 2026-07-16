@@ -549,7 +549,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-17 (przeciąganie kafelków wizyt - zmiana godziny/dnia)
+    Wersja: 2026-07-12-18 (przycisk Wstecz: modal→zakładka→podwójne wyjście)
   </div>
 </div>
 </div>
@@ -929,6 +929,41 @@ function daysLeft(client) {
 // ══════════════════════════════════════════════════
 // TABS
 // ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════
+// PRZYCISK WSTECZ (Android) - zamyka modal, potem wraca do Klientów,
+// dopiero podwójne wciśnięcie na głównym ekranie zamyka aplikację
+// ══════════════════════════════════════════════════
+let lastBackPress = 0;
+
+function initBackButton() {
+  const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!AppPlugin) return;
+
+  AppPlugin.addListener('backButton', () => {
+    const openModalEl = document.querySelector('.modal-overlay.open');
+    if (openModalEl) {
+      openModalEl.classList.remove('open');
+      return;
+    }
+
+    const activeSection = document.querySelector('.section.active');
+    const activeTab = activeSection ? activeSection.id.replace('sec-', '') : 'klienci';
+
+    if (activeTab !== 'klienci') {
+      showTab('klienci');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastBackPress < 2000) {
+      AppPlugin.exitApp();
+    } else {
+      lastBackPress = now;
+      showToast('Naciśnij ponownie, aby wyjść z aplikacji');
+    }
+  });
+}
+
 function showTab(tab) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -2822,6 +2857,7 @@ async function scheduleAllNotifications() {
 initCal();
 initWizCal();
 initDragHandlers();
+initBackButton();
 renderClients();
 
 // Demo dane jeśli baza pusta
