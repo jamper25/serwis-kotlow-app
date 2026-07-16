@@ -127,7 +127,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 .modal{
   background:var(--surface);border:1px solid var(--border);
   border-radius:20px 20px 0 0;
-  width:100%;max-width:600px;max-height:92vh;overflow-y:auto;
+  width:100%;max-height:92vh;overflow-y:auto;
   padding:20px 16px 40px;
 }
 .modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
@@ -549,7 +549,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-18 (przycisk Wstecz: modal→zakładka→podwójne wyjście)
+    Wersja: 2026-07-12-19 (naprawa zwężonego okna edycji serwisu)
   </div>
 </div>
 </div>
@@ -1256,7 +1256,11 @@ function openAddService(id) {
   currentClientId = id;
   currentPhotoData = null;
   photoDeleted = false;
-  
+
+  // Usuń przyciski Zaktualizuj/Usuń pozostałe po ewentualnej wcześniejszej edycji
+  const oldEditBtns = document.querySelector('#modalService #editServiceBtns');
+  if (oldEditBtns) oldEditBtns.remove();
+
   document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('sDesc').value = '';
   document.getElementById('sCost').value = '';
@@ -2264,15 +2268,15 @@ function editService(clientId, serviceId) {
   }
   
   // Dodaj przycisk usunięcia i edycji
-  const modal = document.getElementById('modalService');
-  let editBtnsDiv = modal.querySelector('#editServiceBtns');
+  const modalCard = document.querySelector('#modalService .modal');
+  let editBtnsDiv = modalCard.querySelector('#editServiceBtns');
   if (!editBtnsDiv) {
     editBtnsDiv = document.createElement('div');
     editBtnsDiv.id = 'editServiceBtns';
     editBtnsDiv.style.display = 'flex';
     editBtnsDiv.style.gap = '8px';
     editBtnsDiv.style.marginTop = '12px';
-    modal.appendChild(editBtnsDiv);
+    modalCard.appendChild(editBtnsDiv);
   }
   editBtnsDiv.innerHTML = `
     <button class="io-btn" style="flex:1;background:var(--green)" onclick="updateService('${clientId}','${serviceId}')">💾 Zaktualizuj</button>
@@ -2527,6 +2531,8 @@ function importBackup(input) {
 // ══════════════════════════════════════════════════
 function openAddServiceFromCalendar() {
   currentClientId = null;
+  const oldEditBtns = document.querySelector('#modalService #editServiceBtns');
+  if (oldEditBtns) oldEditBtns.remove();
   document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('sDesc').value = '';
   document.getElementById('sCost').value = '';
