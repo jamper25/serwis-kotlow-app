@@ -30,26 +30,30 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   position:fixed;top:0;left:0;right:0;z-index:100;
   background:rgba(15,17,23,0.95);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:10px;
-  padding:12px 16px;
+  display:flex;align-items:center;
+  padding:14px 16px;
 }
-.nav-logo{font-size:17px;font-weight:800;color:var(--accent);letter-spacing:-.02em;flex-shrink:0}
+.nav-logo{font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-.02em}
 .nav-logo span{color:var(--text)}
-.nav-tabs{
-  display:flex;gap:4px;flex:1;min-width:0;
-  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;z-index:100;
+  background:rgba(15,17,23,0.97);backdrop-filter:blur(12px);
+  border-top:1px solid var(--border);
+  display:flex;
+  padding:6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
 }
-.nav-tabs::-webkit-scrollbar{display:none}
-.nav-tab{
-  padding:7px 14px;border-radius:8px;border:none;flex-shrink:0;
-  background:transparent;color:var(--muted);
-  font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;
-  white-space:nowrap;
+.bn-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 2px;border:none;background:transparent;color:var(--muted);
+  font-family:var(--font);cursor:pointer;border-radius:10px;transition:color .15s;
 }
-.nav-tab.active{background:var(--accent);color:#fff}
+.bn-item .bn-icon{font-size:21px;line-height:1}
+.bn-item .bn-label{font-size:10px;font-weight:700}
+.bn-item.active{color:var(--accent)}
 
 /* ── CONTENT ── */
-.content{padding:72px 16px 100px;max-width:600px;margin:0 auto}
+.content{padding:72px 16px 90px;max-width:600px;margin:0 auto}
 
 /* ── SECTIONS ── */
 .section{display:none}
@@ -107,7 +111,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 
 /* ── ADD BTN ── */
 .fab{
-  position:fixed;bottom:20px;right:20px;z-index:200;
+  position:fixed;bottom:82px;right:20px;z-index:150;
   width:56px;height:56px;border-radius:50%;
   background:var(--accent);border:none;color:#fff;
   font-size:26px;cursor:pointer;
@@ -392,13 +396,28 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <!-- NAV -->
 <nav class="nav">
   <div class="nav-logo">🔥 Serwis<span>Pro</span></div>
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="showTab('klienci')">Klienci</button>
-    <button class="nav-tab" onclick="showTab('zlecenia')">Zlecenia</button>
-    <button class="nav-tab" onclick="showTab('kalendarz')">Termin</button>
-    <button class="nav-tab" onclick="showTab('wizyty')">Wizyty</button>
-    <button class="nav-tab" onclick="showTab('ustawienia')">⚙</button>
-  </div>
+</nav>
+
+<!-- DOLNY PASEK NAWIGACJI -->
+<nav class="bottom-nav">
+  <button class="bn-item active" data-tab="pulpit" onclick="showTab('pulpit')">
+    <span class="bn-icon">🏠</span><span class="bn-label">Pulpit</span>
+  </button>
+  <button class="bn-item" data-tab="klienci" onclick="showTab('klienci')">
+    <span class="bn-icon">👥</span><span class="bn-label">Klienci</span>
+  </button>
+  <button class="bn-item" data-tab="kalendarz" onclick="showTab('kalendarz')">
+    <span class="bn-icon">📅</span><span class="bn-label">Termin</span>
+  </button>
+  <button class="bn-item" data-tab="wizyty" onclick="showTab('wizyty')">
+    <span class="bn-icon">🕐</span><span class="bn-label">Wizyty</span>
+  </button>
+  <button class="bn-item" data-tab="zlecenia" onclick="showTab('zlecenia')">
+    <span class="bn-icon">🧾</span><span class="bn-label">Zlecenia</span>
+  </button>
+  <button class="bn-item" data-tab="ustawienia" onclick="showTab('ustawienia')">
+    <span class="bn-icon">⚙️</span><span class="bn-label">Ustawienia</span>
+  </button>
 </nav>
 
 <!-- TOAST -->
@@ -407,9 +426,41 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <!-- FAB -->
 <button class="fab" id="fab" onclick="openAddClient()">+</button>
 
+<!-- ══ EKRAN BLOKADY (PIN) ══ -->
+<div id="lockScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;padding:24px">
+  <div style="font-size:44px;margin-bottom:8px">🔒</div>
+  <div style="font-size:19px;font-weight:800;margin-bottom:4px">🔥 Serwis<span style="color:var(--accent)">Pro</span></div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:26px" id="lockSubtitle">Podaj PIN, aby otworzyć aplikację</div>
+  <div id="lockDots" style="display:flex;gap:14px;margin-bottom:30px"></div>
+  <div id="lockKeypad" style="display:grid;grid-template-columns:repeat(3,72px);gap:14px;justify-content:center"></div>
+  <div id="lockError" style="color:var(--red);font-size:13px;margin-top:18px;height:16px;font-weight:600"></div>
+</div>
+
+<!-- ══ SEKCJA: PULPIT ══ -->
+<div class="content">
+<div class="section active" id="sec-pulpit">
+  <div id="pulpitGreeting" style="font-size:22px;font-weight:800;margin-bottom:4px"></div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:18px" id="pulpitDate"></div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px">
+    <div class="zl-sum-card" style="cursor:pointer" onclick="goToOverdueClients()">
+      <div class="zl-sum-num" style="color:var(--red)" id="pulpitOverdue">0</div>
+      <div class="zl-sum-label">Przeterminowani</div>
+    </div>
+    <div class="zl-sum-card" style="cursor:pointer" onclick="showTab('wizyty')">
+      <div class="zl-sum-num" style="color:var(--blue)" id="pulpitUpcoming">0</div>
+      <div class="zl-sum-label">Wizyty (7 dni)</div>
+    </div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Nadchodzące wizyty · 7 dni</div>
+  <div id="pulpitUpcomingList"></div>
+</div>
+</div>
+
 <!-- ══ SEKCJA: KLIENCI ══ -->
 <div class="content">
-<div class="section active" id="sec-klienci">
+<div class="section" id="sec-klienci">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input class="search-input" id="searchInput" placeholder="Szukaj klienta, adresu, kotła..." oninput="renderClients()">
@@ -494,6 +545,21 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div class="sms-card">
+    <div class="sms-title">🔒 Blokada aplikacji (PIN)</div>
+    <div class="sms-desc">Zabezpiecz dane klientów 4-cyfrowym kodem PIN. Będzie wymagany przy każdym otwarciu aplikacji.</div>
+    <div class="sms-setting">
+      <label>Blokada PIN</label>
+      <div class="toggle-wrap">
+        <div class="toggle" id="pinToggle" onclick="togglePinLock()"></div>
+        <span id="pinStatus" style="font-size:12px;color:var(--muted)">Wyłączona</span>
+      </div>
+    </div>
+    <button class="io-btn" id="pinChangeBtn" onclick="showLockScreen('change')" style="margin-top:4px;display:none">
+      <span class="io-icon">🔑</span> Zmień PIN
+    </button>
+  </div>
+
+  <div class="sms-card">
     <div class="sms-title">🔐 Backup danych</div>
     <div class="sms-desc">Pobierz lub przywróć kopię swoich danych</div>
     <button class="io-btn" onclick="copyBackupToClipboard()" style="margin-top:8px;width:100%;background:var(--blue)">
@@ -549,7 +615,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-19 (naprawa zwężonego okna edycji serwisu)
+    Wersja: 2026-07-12-20 (dolny pasek, Pulpit, blokada PIN)
   </div>
 </div>
 </div>
@@ -966,7 +1032,7 @@ function initBackButton() {
 
 function showTab(tab) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.bn-item').forEach(t => t.classList.remove('active'));
   const section = document.getElementById('sec-' + tab);
   if (section) {
     section.classList.add('active');
@@ -974,14 +1040,15 @@ function showTab(tab) {
     console.error('Section not found: sec-' + tab);
     return;
   }
-  document.querySelectorAll('.nav-tab').forEach(t => {
-    if (t.textContent.toLowerCase().includes(tab.substring(0,4))) t.classList.add('active');
+  document.querySelectorAll('.bn-item').forEach(t => {
+    if (t.dataset.tab === tab) t.classList.add('active');
   });
   const fab = document.getElementById('fab');
   if (fab) fab.style.display = (tab === 'klienci') ? 'flex' : 'none';
   if (tab === 'kalendarz') renderCalendar();
   if (tab === 'wizyty') renderWizCalendar();
-  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); }
+  if (tab === 'pulpit') renderPulpit();
+  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); }
   if (tab === 'klienci') renderClients();
   if (tab === 'zlecenia') renderZlecenia();
 }
@@ -989,6 +1056,206 @@ function showTab(tab) {
 // ══════════════════════════════════════════════════
 // LISTA KLIENTÓW
 // ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════
+// BLOKADA APLIKACJI (PIN)
+// ══════════════════════════════════════════════════
+let pinBuffer = '';
+let pinSetupStage = null; // null=odblokowanie | 'new' | 'confirm' | 'disable' | 'change' | 'change-confirm'
+let pinFirstEntry = '';
+
+function hashPin(pin) {
+  let hash = 5381;
+  for (let i = 0; i < pin.length; i++) hash = ((hash * 33) ^ pin.charCodeAt(i)) >>> 0;
+  return hash.toString(36);
+}
+
+function isPinEnabled() { return !!localStorage.getItem('app_pin_hash'); }
+
+function renderLockDots() {
+  const dotsEl = document.getElementById('lockDots');
+  dotsEl.innerHTML = [0, 1, 2, 3].map(i =>
+    `<div style="width:14px;height:14px;border-radius:50%;border:2px solid var(--accent);background:${i < pinBuffer.length ? 'var(--accent)' : 'transparent'}"></div>`
+  ).join('');
+}
+
+function buildLockKeypad() {
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  document.getElementById('lockKeypad').innerHTML = keys.map(k => {
+    if (k === '') return '<div></div>';
+    return `<button onclick="lockKeyPress('${k}')" style="width:72px;height:72px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:24px;font-weight:700">${k}</button>`;
+  }).join('');
+}
+
+function lockKeyPress(k) {
+  document.getElementById('lockError').textContent = '';
+  if (k === '⌫') { pinBuffer = pinBuffer.slice(0, -1); renderLockDots(); return; }
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += k;
+  renderLockDots();
+  if (pinBuffer.length === 4) setTimeout(processPinEntry, 150);
+}
+
+function processPinEntry() {
+  const subtitleEl = document.getElementById('lockSubtitle');
+
+  if (pinSetupStage === 'new' || pinSetupStage === 'change') {
+    pinFirstEntry = pinBuffer;
+    pinBuffer = '';
+    renderLockDots();
+    pinSetupStage = pinSetupStage === 'new' ? 'confirm' : 'change-confirm';
+    subtitleEl.textContent = 'Powtórz PIN, aby potwierdzić';
+    return;
+  }
+
+  if (pinSetupStage === 'confirm' || pinSetupStage === 'change-confirm') {
+    if (pinBuffer === pinFirstEntry) {
+      localStorage.setItem('app_pin_hash', hashPin(pinBuffer));
+      pinSetupStage = null;
+      pinBuffer = '';
+      hideLockScreen();
+      showToast('🔒 PIN zapisany!');
+      updatePinToggleUI();
+    } else {
+      document.getElementById('lockError').textContent = 'PIN-y się różnią, spróbuj ponownie';
+      pinBuffer = ''; pinFirstEntry = '';
+      pinSetupStage = pinSetupStage === 'confirm' ? 'new' : 'change';
+      subtitleEl.textContent = 'Ustaw nowy 4-cyfrowy PIN';
+      renderLockDots();
+    }
+    return;
+  }
+
+  if (pinSetupStage === 'disable') {
+    if (hashPin(pinBuffer) === localStorage.getItem('app_pin_hash')) {
+      localStorage.removeItem('app_pin_hash');
+      pinSetupStage = null;
+      pinBuffer = '';
+      hideLockScreen();
+      showToast('🔓 Blokada PIN wyłączona');
+      updatePinToggleUI();
+    } else {
+      document.getElementById('lockError').textContent = 'Błędny PIN';
+      pinBuffer = '';
+      renderLockDots();
+      if (navigator.vibrate) navigator.vibrate([50,50,50]);
+    }
+    return;
+  }
+
+  // Domyślnie: odblokowywanie aplikacji
+  if (hashPin(pinBuffer) === localStorage.getItem('app_pin_hash')) {
+    pinBuffer = '';
+    hideLockScreen();
+  } else {
+    document.getElementById('lockError').textContent = 'Błędny PIN';
+    pinBuffer = '';
+    renderLockDots();
+    if (navigator.vibrate) navigator.vibrate([50,50,50]);
+  }
+}
+
+function showLockScreen(mode) {
+  pinSetupStage = mode || null;
+  pinBuffer = '';
+  pinFirstEntry = '';
+  document.getElementById('lockError').textContent = '';
+  const subtitleEl = document.getElementById('lockSubtitle');
+  if (mode === 'new' || mode === 'change') subtitleEl.textContent = 'Ustaw nowy 4-cyfrowy PIN';
+  else if (mode === 'disable') subtitleEl.textContent = 'Podaj PIN, aby wyłączyć blokadę';
+  else subtitleEl.textContent = 'Podaj PIN, aby otworzyć aplikację';
+  buildLockKeypad();
+  renderLockDots();
+  document.getElementById('lockScreen').style.display = 'flex';
+}
+
+function hideLockScreen() {
+  document.getElementById('lockScreen').style.display = 'none';
+}
+
+function togglePinLock() {
+  if (isPinEnabled()) {
+    showLockScreen('disable');
+  } else {
+    showLockScreen('new');
+  }
+}
+
+function updatePinToggleUI() {
+  const toggle = document.getElementById('pinToggle');
+  const status = document.getElementById('pinStatus');
+  const changeBtn = document.getElementById('pinChangeBtn');
+  if (!toggle) return;
+  const enabled = isPinEnabled();
+  toggle.classList.toggle('on', enabled);
+  status.textContent = enabled ? 'Włączona' : 'Wyłączona';
+  status.style.color = enabled ? 'var(--green)' : 'var(--muted)';
+  if (changeBtn) changeBtn.style.display = enabled ? '' : 'none';
+}
+
+let appWasBackgrounded = false;
+function initAppLock() {
+  updatePinToggleUI();
+  if (isPinEnabled()) showLockScreen();
+
+  const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!AppPlugin) return;
+  AppPlugin.addListener('appStateChange', ({ isActive }) => {
+    if (!isActive) {
+      appWasBackgrounded = true;
+    } else if (appWasBackgrounded && isPinEnabled()) {
+      appWasBackgrounded = false;
+      showLockScreen();
+    }
+  });
+}
+
+function goToOverdueClients() {
+  showTab('klienci');
+  const btn = document.querySelector('.filter-btn[data-filter="overdue"]');
+  if (btn) setFilter('overdue', btn);
+}
+
+function renderPulpit() {
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Dzień dobry' : hour < 18 ? 'Cześć' : 'Dobry wieczór';
+  document.getElementById('pulpitGreeting').textContent = `${greeting}! 👋`;
+
+  const dniTyg = ['Niedziela','Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota'];
+  const miesiace = ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'];
+  document.getElementById('pulpitDate').textContent = `${dniTyg[now.getDay()]}, ${now.getDate()} ${miesiace[now.getMonth()]} ${now.getFullYear()}`;
+
+  const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
+  document.getElementById('pulpitOverdue').textContent = overdueCount;
+
+  const todayStr = now.toISOString().split('T')[0];
+  const in7 = new Date(now); in7.setDate(in7.getDate() + 7);
+  const in7Str = in7.toISOString().split('T')[0];
+  const upcoming = appointments
+    .filter(a => a.date >= todayStr && a.date <= in7Str)
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+  document.getElementById('pulpitUpcoming').textContent = upcoming.length;
+
+  const listEl = document.getElementById('pulpitUpcomingList');
+  if (!upcoming.length) {
+    listEl.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Brak wizyt w najbliższych 7 dniach</div></div>';
+    return;
+  }
+  listEl.innerHTML = upcoming.map(a => {
+    const client = a.clientId ? clients.find(c => c.id === a.clientId) : null;
+    const label = client ? client.name : (a.name || 'Wizyta');
+    const phone = client ? client.phone : a.phone;
+    return `<div class="cal-event" onclick="showTab('wizyty');selectWizDay('${a.date}')">
+      <div class="cal-event-dot" style="background:var(--blue)"></div>
+      <div style="flex:1">
+        <div class="cal-event-name">${label}</div>
+        <div class="cal-event-date">${formatDate(a.date)} · godz. ${a.time}${phone ? ' · 📞 ' + phone : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function setFilter(f, btn) {
   currentFilter = f;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -2864,7 +3131,7 @@ initCal();
 initWizCal();
 initDragHandlers();
 initBackButton();
-renderClients();
+initAppLock();
 
 // Demo dane jeśli baza pusta
 if (!clients.length) {
@@ -2874,8 +3141,9 @@ if (!clients.length) {
     {id:genId(),name:'Piotr Wiśniewski',phone:'700 300 400',street:'Różana 7',zip:'05-100',city:'Nowy Dwór Maz.',boilerModel:'Vaillant ecoTEC',boilerSerial:'VL789012',boilerYear:'2017',boilerPower:'28',lastService:'2023-11-20',nextService:'2024-11-20',interval:'12',notes:'Pies w domu — uważać!',services:[]},
   ];
   save();
-  renderClients();
 }
+
+showTab('pulpit');
 </script>
 </body>
 </html>
