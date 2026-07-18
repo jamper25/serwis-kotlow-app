@@ -619,7 +619,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-21 (odzyskiwanie PIN: pytanie + kod email)
+    Wersja: 2026-07-12-22 (naprawa podglądu zdjęcia - bez wychodzenia z aplikacji)
   </div>
 </div>
 </div>
@@ -945,6 +945,21 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="display:flex;flex-direction:column;gap:8px">
     <button class="btn btn-primary" onclick="checkPinRecoveryEmailCode()">✅ Sprawdź</button>
     <button class="btn btn-secondary" onclick="closeModal('modalPinRecoveryEmailCode')">Anuluj</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: PODGLĄD ZDJĘCIA PROTOKOŁU ══ -->
+<div class="modal-overlay" id="modalPhotoView">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="photoModalTitle">📄 Protokół serwisowy</div>
+  <div style="text-align:center;margin-bottom:16px">
+    <img id="photoModalImg" src="" style="max-width:100%;max-height:60vh;border-radius:10px;border:1px solid var(--border)">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="sharePhotoModal()">📤 Udostępnij / Zapisz</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalPhotoView')">Zamknij</button>
   </div>
 </div>
 </div>
@@ -2539,49 +2554,6 @@ function resetPhotoUI() {
   if (cam) cam.value = '';
 }
 
-function downloadProtoPDF(photoData, clientName, date) {
-  // Użyj przekazanego zdjęcia lub aktualnego z modalu
-  const img = photoData || currentPhotoData;
-  if (!img) { showToast('Brak zdjęcia!', true); return; }
-
-  const name = clientName || 'Protokol';
-  const d = date || new Date().toISOString().split('T')[0];
-
-  // Generuj HTML-PDF przez nowe okno
-  const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <title>Protokół serwisowy — ${name}</title>
-    <style>
-      body{margin:0;padding:20px;font-family:Arial,sans-serif;background:#fff}
-      .header{text-align:center;border-bottom:2px solid #f97316;padding-bottom:12px;margin-bottom:16px}
-      .header h1{color:#f97316;font-size:20px;margin:0}
-      .header p{color:#666;font-size:13px;margin:4px 0 0}
-      .photo{text-align:center;margin:20px 0}
-      .photo img{max-width:100%;max-height:80vh;border:1px solid #ddd;border-radius:8px}
-      .footer{margin-top:20px;text-align:center;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:10px}
-      @media print{body{padding:0}.footer{position:fixed;bottom:0;width:100%}}
-    </style>
-  </head><body>
-    <div class="header">
-      <h1>🔥 Protokół serwisowy</h1>
-      <p>Klient: <strong>${name}</strong> · Data: <strong>${d}</strong></p>
-    </div>
-    <div class="photo"><img src="${img}"></div>
-    <div class="footer">Wygenerowano przez SerwisKotłów Pro · ${new Date().toLocaleDateString('pl-PL')}</div>
-    <script>window.onload=()=>{window.print()}<\/script>
-  </body></html>`);
-  win.document.close();
-}
-
-function viewServicePhoto(clientId, serviceId) {
-  const c = clients.find(x => x.id === clientId);
-  if (!c) return;
-  const s = (c.services||[]).find(x => x.id === serviceId);
-  if (!s || !s.photo) return;
-  downloadProtoPDF(s.photo, c.name, s.date);
-}
-
 function openAddNewClientQuick() {
   const name = document.getElementById('sClientSearch').value.trim();
   if (!name) {
@@ -2689,36 +2661,11 @@ async function sendBackupEmail() {
 // ══════════════════════════════════════════════════
 
 function downloadProtoPDF() {
-  console.log('downloadProtoPDF called, currentPhotoData:', currentPhotoData ? 'exists' : 'missing');
-  if (!currentPhotoData) { 
-    showToast('❌ Brak zdjęcia!'); 
-    return; 
+  if (!currentPhotoData) {
+    showToast('❌ Brak zdjęcia!', true);
+    return;
   }
-  console.log('Opening PDF window...');
-  const win = window.open();
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Protokół PDF</title>
-    <style>body{margin:0;padding:20px;background:#f0f0f0;text-align:center;font-family:Arial}
-    img{max-width:100%;border:1px solid #ddd;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1)}
-    h2{color:#333}</style></head><body>
-    <h2>Protokół serwisowy</h2>
-    <img src="${currentPhotoData}">
-    <p style="margin-top:20px;font-size:12px;color:#666">Data: ${new Date().toLocaleString('pl-PL')}</p>
-    </body></html>`);
-  console.log('PDF window opened');
-  showToast('✅ PDF otwarty - możesz wydrukować (Ctrl+P)');
-}
-
-function viewProtocolPDF(photoData, clientName, date) {
-  if (!photoData) return;
-  const win = window.open();
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Protokół</title>
-    <style>body{margin:0;padding:20px;background:#f0f0f0;font-family:Arial;text-align:center}
-    img{max-width:100%;border:1px solid #ddd;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1)}</style>
-    </head><body>
-    <h2>${clientName} - ${date}</h2>
-    <img src="${photoData}">
-    <p style="margin-top:20px;font-size:12px;color:#666">Protokół serwisowy</p>
-    </body></html>`);
+  showPhotoModal(currentPhotoData, 'Protokół serwisowy');
 }
 
 function viewServicePhoto(clientId, serviceId) {
@@ -2726,7 +2673,58 @@ function viewServicePhoto(clientId, serviceId) {
   if (!c) return;
   const s = (c.services || []).find(x => x.id === serviceId);
   if (!s || !s.photo) return;
-  viewProtocolPDF(s.photo, c.name, formatDate(s.date));
+  showPhotoModal(s.photo, `${c.name} — ${formatDate(s.date)}`);
+}
+
+function showPhotoModal(photoData, title) {
+  document.getElementById('photoModalTitle').textContent = '📄 ' + title;
+  document.getElementById('photoModalImg').src = photoData;
+  openModal('modalPhotoView');
+}
+
+async function sharePhotoModal() {
+  const dataUri = document.getElementById('photoModalImg').src;
+  const match = dataUri.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (!match) { showToast('Błąd danych zdjęcia', true); return; }
+  const ext = match[1].split('/')[1] || 'jpg';
+  const base64 = match[2];
+  const fileName = `protokol-${Date.now()}.${ext}`;
+  const ok = await shareBinaryFile(fileName, base64, 'Zapisz / udostępnij zdjęcie protokołu');
+  if (ok) showToast('✅ Gotowe!');
+}
+
+async function shareBinaryFile(fileName, base64Data, dialogTitle) {
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (plugins && plugins.Filesystem && plugins.Share) {
+    const { Filesystem, Share } = plugins;
+    try {
+      await Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' });
+      const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
+      await Share.share({ title: fileName, url: uri, dialogTitle: dialogTitle || 'Zapisz plik' });
+      return true;
+    } catch (e) {
+      console.log('shareBinaryFile error', e);
+      showToast('Błąd zapisu pliku: ' + (e.message || ''), true);
+      return false;
+    }
+  } else {
+    try {
+      const byteChars = atob(base64Data);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      return true;
+    } catch (e) {
+      showToast('Błąd pobierania: ' + (e.message || ''), true);
+      return false;
+    }
+  }
 }
 
 function editService(clientId, serviceId) {
