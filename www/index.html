@@ -434,6 +434,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div id="lockDots" style="display:flex;gap:14px;margin-bottom:30px"></div>
   <div id="lockKeypad" style="display:grid;grid-template-columns:repeat(3,72px);gap:14px;justify-content:center"></div>
   <div id="lockError" style="color:var(--red);font-size:13px;margin-top:18px;height:16px;font-weight:600"></div>
+  <div id="lockForgotLink" style="display:none;margin-top:14px;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer" onclick="openPinRecoveryChoice()">Zapomniałeś PIN-u?</div>
 </div>
 
 <!-- ══ SEKCJA: PULPIT ══ -->
@@ -557,6 +558,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     <button class="io-btn" id="pinChangeBtn" onclick="showLockScreen('change')" style="margin-top:4px;display:none">
       <span class="io-icon">🔑</span> Zmień PIN
     </button>
+    <button class="io-btn" id="pinRecoveryChangeBtn" onclick="openRecoverySettingsDirect()" style="margin-top:6px;display:none">
+      <span class="io-icon">🛟</span> Zmień pytanie / e-mail odzyskiwania
+    </button>
   </div>
 
   <div class="sms-card">
@@ -615,7 +619,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-20 (dolny pasek, Pulpit, blokada PIN)
+    Wersja: 2026-07-12-21 (odzyskiwanie PIN: pytanie + kod email)
   </div>
 </div>
 </div>
@@ -856,6 +860,91 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     <button class="btn btn-primary" onclick="saveAppointment()">💾 Zapisz wizytę</button>
     <button class="btn btn-danger" id="apDeleteBtn" onclick="deleteAppointment()" style="display:none">🗑 Usuń wizytę</button>
     <button class="btn btn-secondary" onclick="closeModal('modalAppointment')">Anuluj</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: PYTANIE POMOCNICZE DO PIN (USTAWIENIE) ══ -->
+<div class="modal-overlay" id="modalPinRecoverySetup" style="z-index:10000">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">🛟 Odzyskiwanie PIN</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Jeśli zapomnisz PIN-u, poniższe opcje pozwolą go zresetować bez utraty danych. Wypełnij chociaż jedną.</div>
+
+  <div class="form-section">Pytanie pomocnicze</div>
+  <div class="form-group">
+    <label class="form-label">Pytanie</label>
+    <input class="form-input" id="pinRecoveryQ" type="text" placeholder="np. Jak nazywał się mój pierwszy klient?">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Odpowiedź</label>
+    <input class="form-input" id="pinRecoveryA" type="text" placeholder="Twoja odpowiedź">
+  </div>
+
+  <div class="form-section">Kod zapasowy na e-mail (opcjonalnie)</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Wygenerujemy kod i otworzymy Twoją pocztę, żebyś wysłał go do siebie. Zachowaj tę wiadomość - kod z niej odblokuje aplikację.</div>
+  <div class="form-group">
+    <label class="form-label">Twój adres e-mail</label>
+    <input class="form-input" id="pinRecoveryEmail" type="email" placeholder="twoj@email.pl">
+  </div>
+
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="savePinRecoveryQA()">💾 Zapisz</button>
+    <button class="btn btn-secondary" onclick="skipPinRecoverySetup()">Pomiń (niepolecane)</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: ODZYSKIWANIE PIN - WYBÓR METODY ══ -->
+<div class="modal-overlay" id="modalPinRecoveryChoice" style="z-index:10000">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">🛟 Zapomniałeś PIN-u?</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Wybierz sposób odzyskania dostępu:</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" id="pinRecoveryQuestionBtn" onclick="openPinRecoveryAnswer()" style="display:none">❓ Odpowiedz na pytanie pomocnicze</button>
+    <button class="btn btn-primary" id="pinRecoveryEmailBtn" onclick="openPinRecoveryEmailCode()" style="display:none">📧 Mam kod z e-maila</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalPinRecoveryChoice');showLockScreen()">Anuluj</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: ODZYSKIWANIE PIN (ODPOWIEDŹ NA PYTANIE) ══ -->
+<div class="modal-overlay" id="modalPinRecoveryAnswer" style="z-index:10000">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">❓ Pytanie pomocnicze</div>
+  <div style="font-size:14px;font-weight:700;margin-bottom:12px" id="pinRecoveryQuestionDisplay"></div>
+
+  <div class="form-group">
+    <label class="form-label">Twoja odpowiedź</label>
+    <input class="form-input" id="pinRecoveryAnswerInput" type="text" placeholder="Wpisz odpowiedź">
+  </div>
+  <div style="color:var(--red);font-size:13px;min-height:16px;margin-bottom:8px" id="pinRecoveryError"></div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="checkPinRecoveryAnswer()">✅ Sprawdź</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalPinRecoveryAnswer')">Anuluj</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: ODZYSKIWANIE PIN (KOD Z E-MAILA) ══ -->
+<div class="modal-overlay" id="modalPinRecoveryEmailCode" style="z-index:10000">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📧 Kod z e-maila</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Sprawdź wiadomość, którą wysłałeś do siebie przy ustawianiu PIN-u, i wpisz zawarty w niej kod.</div>
+
+  <div class="form-group">
+    <label class="form-label">Kod z e-maila</label>
+    <input class="form-input" id="pinRecoveryCodeInput" type="text" placeholder="np. A3F9K2" style="letter-spacing:.15em;font-family:var(--mono);text-transform:uppercase">
+  </div>
+  <div style="color:var(--red);font-size:13px;min-height:16px;margin-bottom:8px" id="pinRecoveryCodeError"></div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="checkPinRecoveryEmailCode()">✅ Sprawdź</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalPinRecoveryEmailCode')">Anuluj</button>
   </div>
 </div>
 </div>
@@ -1110,11 +1199,19 @@ function processPinEntry() {
   if (pinSetupStage === 'confirm' || pinSetupStage === 'change-confirm') {
     if (pinBuffer === pinFirstEntry) {
       localStorage.setItem('app_pin_hash', hashPin(pinBuffer));
+      const wasFirstSetup = pinSetupStage === 'confirm';
       pinSetupStage = null;
       pinBuffer = '';
-      hideLockScreen();
-      showToast('🔒 PIN zapisany!');
       updatePinToggleUI();
+      if (wasFirstSetup) {
+        document.getElementById('pinRecoveryQ').value = '';
+        document.getElementById('pinRecoveryA').value = '';
+        document.getElementById('pinRecoveryEmail').value = '';
+        openModal('modalPinRecoverySetup');
+      } else {
+        hideLockScreen();
+        showToast('🔒 PIN zmieniony!');
+      }
     } else {
       document.getElementById('lockError').textContent = 'PIN-y się różnią, spróbuj ponownie';
       pinBuffer = ''; pinFirstEntry = '';
@@ -1128,6 +1225,10 @@ function processPinEntry() {
   if (pinSetupStage === 'disable') {
     if (hashPin(pinBuffer) === localStorage.getItem('app_pin_hash')) {
       localStorage.removeItem('app_pin_hash');
+      localStorage.removeItem('app_pin_recovery_q');
+      localStorage.removeItem('app_pin_recovery_a_hash');
+      localStorage.removeItem('app_pin_recovery_email_code_hash');
+      localStorage.removeItem('app_pin_recovery_email');
       pinSetupStage = null;
       pinBuffer = '';
       hideLockScreen();
@@ -1166,6 +1267,119 @@ function showLockScreen(mode) {
   buildLockKeypad();
   renderLockDots();
   document.getElementById('lockScreen').style.display = 'flex';
+  updateLockForgotLinkVisibility();
+}
+
+function updateLockForgotLinkVisibility() {
+  const link = document.getElementById('lockForgotLink');
+  if (!link) return;
+  const hasRecovery = !!localStorage.getItem('app_pin_recovery_a_hash') || !!localStorage.getItem('app_pin_recovery_email_code_hash');
+  link.style.display = (pinSetupStage === null && hasRecovery) ? 'block' : 'none';
+}
+
+// ── Zapis pytania pomocniczego / kodu e-mail ──
+function savePinRecoveryQA() {
+  const q = document.getElementById('pinRecoveryQ').value.trim();
+  const a = document.getElementById('pinRecoveryA').value.trim();
+  const email = document.getElementById('pinRecoveryEmail').value.trim();
+
+  if (!q && !a && !email) {
+    showToast('Wypełnij chociaż jedną opcję albo pomiń', true);
+    return;
+  }
+  if ((q && !a) || (!q && a)) {
+    showToast('Uzupełnij zarówno pytanie, jak i odpowiedź', true);
+    return;
+  }
+  if (q && a) {
+    localStorage.setItem('app_pin_recovery_q', q);
+    localStorage.setItem('app_pin_recovery_a_hash', hashPin(a.trim().toLowerCase()));
+  }
+  if (email) {
+    const code = generateRecoveryCode();
+    localStorage.setItem('app_pin_recovery_email_code_hash', hashPin(code));
+    localStorage.setItem('app_pin_recovery_email', email);
+    sendRecoveryEmailCode(email, code);
+  }
+  closeModal('modalPinRecoverySetup');
+  hideLockScreen();
+  showToast('✅ Zabezpieczenie odzyskiwania zapisane!');
+}
+
+function skipPinRecoverySetup() {
+  closeModal('modalPinRecoverySetup');
+  hideLockScreen();
+  showToast('⚠️ Bez tego nie da się odzyskać PIN-u jeśli go zapomnisz', true);
+}
+
+function generateRecoveryCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // bez mylących znaków (O/0, I/1)
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function sendRecoveryEmailCode(email, code) {
+  const subject = 'Kod odzyskiwania PIN - Serwis Kotłów';
+  const body = `Twój kod odzyskiwania PIN do aplikacji Serwis Kotłów:\n\n${code}\n\nZachowaj tę wiadomość - ten kod pozwoli Ci zresetować PIN, jeśli go zapomnisz.`;
+  const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location = mailto;
+}
+
+// Pozwala zmienić pytanie/e-mail odzyskiwania z Ustawień, bez podawania PIN
+function openRecoverySettingsDirect() {
+  document.getElementById('pinRecoveryQ').value = localStorage.getItem('app_pin_recovery_q') || '';
+  document.getElementById('pinRecoveryA').value = '';
+  document.getElementById('pinRecoveryEmail').value = localStorage.getItem('app_pin_recovery_email') || '';
+  openModal('modalPinRecoverySetup');
+}
+
+// ── Odzyskiwanie: wybór metody + weryfikacja ──
+function openPinRecoveryChoice() {
+  const hasQ = !!localStorage.getItem('app_pin_recovery_a_hash');
+  const hasEmail = !!localStorage.getItem('app_pin_recovery_email_code_hash');
+  document.getElementById('pinRecoveryQuestionBtn').style.display = hasQ ? '' : 'none';
+  document.getElementById('pinRecoveryEmailBtn').style.display = hasEmail ? '' : 'none';
+  openModal('modalPinRecoveryChoice');
+}
+
+function openPinRecoveryAnswer() {
+  closeModal('modalPinRecoveryChoice');
+  document.getElementById('pinRecoveryQuestionDisplay').textContent = localStorage.getItem('app_pin_recovery_q') || '';
+  document.getElementById('pinRecoveryAnswerInput').value = '';
+  document.getElementById('pinRecoveryError').textContent = '';
+  openModal('modalPinRecoveryAnswer');
+}
+
+function checkPinRecoveryAnswer() {
+  const answer = document.getElementById('pinRecoveryAnswerInput').value.trim().toLowerCase();
+  const stored = localStorage.getItem('app_pin_recovery_a_hash');
+  if (answer && hashPin(answer) === stored) {
+    closeModal('modalPinRecoveryAnswer');
+    showToast('✅ Poprawnie! Ustaw nowy PIN.');
+    showLockScreen('new');
+  } else {
+    document.getElementById('pinRecoveryError').textContent = 'Niepoprawna odpowiedź';
+  }
+}
+
+function openPinRecoveryEmailCode() {
+  closeModal('modalPinRecoveryChoice');
+  document.getElementById('pinRecoveryCodeInput').value = '';
+  document.getElementById('pinRecoveryCodeError').textContent = '';
+  openModal('modalPinRecoveryEmailCode');
+}
+
+function checkPinRecoveryEmailCode() {
+  const code = document.getElementById('pinRecoveryCodeInput').value.trim().toUpperCase();
+  const stored = localStorage.getItem('app_pin_recovery_email_code_hash');
+  if (code && hashPin(code) === stored) {
+    closeModal('modalPinRecoveryEmailCode');
+    showToast('✅ Poprawnie! Ustaw nowy PIN.');
+    showLockScreen('new');
+  } else {
+    document.getElementById('pinRecoveryCodeError').textContent = 'Niepoprawny kod';
+  }
 }
 
 function hideLockScreen() {
@@ -1184,12 +1398,14 @@ function updatePinToggleUI() {
   const toggle = document.getElementById('pinToggle');
   const status = document.getElementById('pinStatus');
   const changeBtn = document.getElementById('pinChangeBtn');
+  const recoveryBtn = document.getElementById('pinRecoveryChangeBtn');
   if (!toggle) return;
   const enabled = isPinEnabled();
   toggle.classList.toggle('on', enabled);
   status.textContent = enabled ? 'Włączona' : 'Wyłączona';
   status.style.color = enabled ? 'var(--green)' : 'var(--muted)';
   if (changeBtn) changeBtn.style.display = enabled ? '' : 'none';
+  if (recoveryBtn) recoveryBtn.style.display = enabled ? '' : 'none';
 }
 
 let appWasBackgrounded = false;
