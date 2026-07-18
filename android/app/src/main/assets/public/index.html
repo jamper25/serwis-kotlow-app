@@ -484,12 +484,27 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <!-- ══ SEKCJA: HISTORIA ZLECEŃ ══ -->
 <div class="section" id="sec-zlecenia">
   <div class="zlecenia-summary" id="zleceniaSummary"></div>
-  <div class="zl-filters">
-    <button class="filter-btn active" data-zfilter="all" onclick="setZFilter('all',this)">Wszystkie</button>
-    <button class="filter-btn" data-zfilter="month" onclick="setZFilter('month',this)">Ten miesiąc</button>
-    <button class="filter-btn" data-zfilter="year" onclick="setZFilter('year',this)">Ten rok</button>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="filter-btn active" id="zlViewWeekBtn" onclick="zlSetView('tydzien')" style="flex:1;text-align:center">Tydzień</button>
+    <button class="filter-btn" id="zlViewMonthBtn" onclick="zlSetView('miesiac')" style="flex:1;text-align:center">Miesiąc</button>
   </div>
-  <div id="zlecenieList"></div>
+
+  <div class="cal-header">
+    <button class="cal-nav" onclick="zlNavPrev()">‹</button>
+    <div class="cal-month" id="zlRangeLabel"></div>
+    <button class="cal-nav" onclick="zlNavNext()">›</button>
+  </div>
+
+  <div class="cal-grid" id="zlCalGrid" style="display:none"></div>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 14px;font-size:11px;color:var(--muted)">
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:4px"></span>Konserwacja</div>
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin-right:4px"></span>Awaria</div>
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Pierwsze uruchomienie</div>
+  </div>
+
+  <div id="zlContent"></div>
 </div>
 
 <!-- ══ SEKCJA: KALENDARZ ══ -->
@@ -619,7 +634,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-22 (naprawa podglądu zdjęcia - bez wychodzenia z aplikacji)
+    Wersja: 2026-07-12-23 (Zlecenia: widok tygodniowy/miesięczny z kolorowymi kafelkami)
   </div>
 </div>
 </div>
@@ -705,6 +720,14 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div id="firstServiceSection">
   <div class="form-section">Dane pierwszego serwisu (jeśli wykonujesz go teraz)</div>
   <div class="form-group">
+    <label class="form-label">Rodzaj</label>
+    <select class="form-select" id="fServiceType">
+      <option value="konserwacja">🟢 Konserwacja</option>
+      <option value="awaria">🔴 Awaria</option>
+      <option value="uruchomienie">🔵 Pierwsze uruchomienie</option>
+    </select>
+  </div>
+  <div class="form-group">
     <label class="form-label">Opis wykonanych prac</label>
     <textarea class="form-textarea" id="fServiceDesc" placeholder="np. Czyszczenie palnika, wymiana uszczelek, regulacja ciśnienia..."></textarea>
   </div>
@@ -774,6 +797,14 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="form-group">
     <label class="form-label">Data serwisu *</label>
     <input class="form-input" id="sDate" type="date">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Rodzaj</label>
+    <select class="form-select" id="sType">
+      <option value="konserwacja">🟢 Konserwacja</option>
+      <option value="awaria">🔴 Awaria</option>
+      <option value="uruchomienie">🔵 Pierwsze uruchomienie</option>
+    </select>
   </div>
   <div class="form-group">
     <label class="form-label">Opis wykonanych prac</label>
@@ -1038,6 +1069,7 @@ function removeNewClientPhoto() {
 
 function resetNewClientServiceForm() {
   newClientPhotoData = null;
+  document.getElementById('fServiceType').value = 'konserwacja';
   document.getElementById('fServiceDesc').value = '';
   document.getElementById('fServiceCost').value = '';
   document.getElementById('fServiceParts').value = '';
@@ -1718,6 +1750,7 @@ function saveClient() {
       data.services = [{
         id: genId(),
         date: data.lastService || new Date().toISOString().split('T')[0],
+        type: document.getElementById('fServiceType').value || 'konserwacja',
         desc: sDesc,
         cost: sCost,
         parts: sParts,
@@ -1760,6 +1793,7 @@ function openAddService(id) {
   if (oldEditBtns) oldEditBtns.remove();
 
   document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sType').value = 'konserwacja';
   document.getElementById('sDesc').value = '';
   document.getElementById('sCost').value = '';
   document.getElementById('sParts').value = '';
@@ -1803,6 +1837,7 @@ function saveService() {
   c.services.push({
     id: genId(),
     date,
+    type: document.getElementById('sType').value || 'konserwacja',
     desc: document.getElementById('sDesc').value.trim(),
     cost: document.getElementById('sCost').value,
     parts: document.getElementById('sParts').value,
@@ -2736,6 +2771,7 @@ function editService(clientId, serviceId) {
   // Wypełnij formularz danymi serwisu
   document.getElementById('sClientSearch').value = c.name;
   document.getElementById('sDate').value = s.date;
+  document.getElementById('sType').value = s.type || 'konserwacja';
   document.getElementById('sDesc').value = s.desc || '';
   document.getElementById('sCost').value = s.cost || '';
   document.getElementById('sParts').value = s.parts || '';
@@ -2783,6 +2819,7 @@ function updateService(clientId, serviceId) {
   c.services[sIdx] = {
     id: serviceId,
     date: document.getElementById('sDate').value,
+    type: document.getElementById('sType').value || 'konserwacja',
     desc: document.getElementById('sDesc').value.trim(),
     cost: document.getElementById('sCost').value,
     parts: document.getElementById('sParts').value,
@@ -3015,6 +3052,7 @@ function openAddServiceFromCalendar() {
   const oldEditBtns = document.querySelector('#modalService #editServiceBtns');
   if (oldEditBtns) oldEditBtns.remove();
   document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sType').value = 'konserwacja';
   document.getElementById('sDesc').value = '';
   document.getElementById('sCost').value = '';
   document.getElementById('sParts').value = '';
@@ -3078,13 +3116,148 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 // ══════════════════════════════════════════════════
 // HISTORIA ZLECEŃ
 // ══════════════════════════════════════════════════
-let currentZFilter = 'all';
+// ══════════════════════════════════════════════════
+// HISTORIA ZLECEŃ - WIDOK TYGODNIOWY / MIESIĘCZNY
+// ══════════════════════════════════════════════════
+let zlViewMode = 'tydzien'; // 'tydzien' | 'miesiac'
+let zlWeekStart, zlCalYear, zlCalMonth, zlSelectedDay;
 
-function setZFilter(f, btn) {
-  currentZFilter = f;
-  document.querySelectorAll('[data-zfilter]').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+const ZL_TYPE_COLORS = { konserwacja: 'var(--green)', awaria: 'var(--red)', uruchomienie: 'var(--blue)' };
+
+function initZlecenia() {
+  const now = new Date();
+  zlWeekStart = getMonday(now);
+  zlCalYear = now.getFullYear();
+  zlCalMonth = now.getMonth();
+  zlSelectedDay = now.toISOString().split('T')[0];
+}
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function zlSetView(mode) {
+  zlViewMode = mode;
+  document.getElementById('zlViewWeekBtn').classList.toggle('active', mode === 'tydzien');
+  document.getElementById('zlViewMonthBtn').classList.toggle('active', mode === 'miesiac');
+  document.getElementById('zlCalGrid').style.display = mode === 'miesiac' ? '' : 'none';
   renderZlecenia();
+}
+
+function zlNavPrev() { if (zlViewMode === 'tydzien') { zlWeekStart.setDate(zlWeekStart.getDate() - 7); } else { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } } renderZlecenia(); }
+function zlNavNext() { if (zlViewMode === 'tydzien') { zlWeekStart.setDate(zlWeekStart.getDate() + 7); } else { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } } renderZlecenia(); }
+
+function zlSelectDay(dateStr) {
+  zlSelectedDay = dateStr;
+  renderZlecenia();
+}
+
+function getServicesInRange(startStr, endStr) {
+  const list = [];
+  clients.forEach(c => {
+    (c.services || []).forEach(s => {
+      if (s.date >= startStr && s.date <= endStr) list.push({ client: c, service: s });
+    });
+  });
+  return list.sort((a, b) => a.service.date.localeCompare(b.service.date));
+}
+
+function zlTileHtml(it) {
+  const type = it.service.type || 'konserwacja';
+  const color = ZL_TYPE_COLORS[type] || ZL_TYPE_COLORS.konserwacja;
+  const addr = [it.client.street, [it.client.zip, it.client.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return `<div onclick="editService('${it.client.id}','${it.service.id}')"
+      style="background:${color}1a;border-left:4px solid ${color};border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer">
+    <div style="font-weight:700">${it.client.name}</div>
+    ${addr ? `<div style="font-size:12px;color:var(--muted)">${addr}</div>` : ''}
+  </div>`;
+}
+
+function renderZlWeek() {
+  const days = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(zlWeekStart); d.setDate(d.getDate() + i); days.push(d); }
+  const startStr = days[0].toISOString().split('T')[0];
+  const endStr = days[6].toISOString().split('T')[0];
+  const items = getServicesInRange(startStr, endStr);
+
+  document.getElementById('zlRangeLabel').textContent = `${formatDate(startStr)} — ${formatDate(endStr)}`;
+
+  const dayNames = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+  const today = new Date().toISOString().split('T')[0];
+  let html = '';
+  days.forEach((d, idx) => {
+    const dStr = d.toISOString().split('T')[0];
+    const dayItems = items.filter(it => it.service.date === dStr);
+    html += `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:${dStr === today ? 'var(--accent)' : 'var(--muted)'};text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${dayNames[idx]}, ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}${dStr === today ? ' · dziś' : ''}</div>
+      ${dayItems.length ? dayItems.map(it => zlTileHtml(it)).join('') : '<div style="font-size:13px;color:var(--muted);padding:2px 0 6px">—</div>'}
+    </div>`;
+  });
+  document.getElementById('zlContent').innerHTML = html;
+  return items.length;
+}
+
+function renderZlMonth() {
+  const months = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+  document.getElementById('zlRangeLabel').textContent = `${months[zlCalMonth]} ${zlCalYear}`;
+
+  const firstDay = new Date(zlCalYear, zlCalMonth, 1).getDay();
+  const daysInMonth = new Date(zlCalYear, zlCalMonth + 1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+
+  const dayTypes = {};
+  clients.forEach(c => (c.services || []).forEach(s => {
+    const d = new Date(s.date);
+    if (d.getFullYear() === zlCalYear && d.getMonth() === zlCalMonth) {
+      (dayTypes[s.date] = dayTypes[s.date] || []).push(s.type || 'konserwacja');
+    }
+  }));
+
+  const dayNames = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
+  let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+  for (let i = 0; i < firstDay; i++) html += `<div class="cal-day other"></div>`;
+
+  let monthCount = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${zlCalYear}-${String(zlCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = dateStr === today;
+    const isSelected = dateStr === zlSelectedDay;
+    const types = dayTypes[dateStr] || [];
+    monthCount += types.length;
+    const uniqueTypes = [...new Set(types)].slice(0, 3);
+    const dots = uniqueTypes.map(t => `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${ZL_TYPE_COLORS[t] || ZL_TYPE_COLORS.konserwacja};margin:0 1px"></span>`).join('');
+    html += `<div class="cal-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="zlSelectDay('${dateStr}')" style="position:relative">${d}${dots ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);white-space:nowrap">${dots}</div>` : ''}</div>`;
+  }
+  document.getElementById('zlCalGrid').innerHTML = html;
+
+  // Lista wybranego dnia pod kalendarzem
+  const dayItems = getServicesInRange(zlSelectedDay, zlSelectedDay);
+  let contentHtml = `<div style="font-size:13px;font-weight:700;margin-bottom:8px">📅 ${formatDate(zlSelectedDay)}</div>`;
+  contentHtml += dayItems.length ? dayItems.map(it => zlTileHtml(it)).join('') : '<div style="font-size:13px;color:var(--muted)">Brak zleceń tego dnia</div>';
+  document.getElementById('zlContent').innerHTML = contentHtml;
+
+  return monthCount;
+}
+
+function renderZlecenia() {
+  const count = zlViewMode === 'tydzien' ? renderZlWeek() : renderZlMonth();
+
+  if (!count) {
+    const el = document.getElementById('zlContent');
+    if (zlViewMode === 'tydzien' && !el.innerHTML.includes('—')) {
+      // widok tygodniowy zawsze pokazuje dni, nawet puste - nic dodatkowego nie trzeba
+    }
+  }
+
+  document.getElementById('zleceniaSummary').innerHTML = `
+    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--accent)">${count}</div><div class="zl-sum-label">Zleceń</div></div>
+    <div class="zl-sum-card" onclick="openMonthlyReport()" style="cursor:pointer;border:1.5px solid var(--blue)"><div class="zl-sum-num" style="color:var(--blue)">📊 Raport</div><div class="zl-sum-label">Dochód miesięczny</div></div>
+  `;
 }
 
 // ══════════════════════════════════════════════════
@@ -3125,53 +3298,6 @@ function renderMonthlyReport() {
       <div style="font-weight:700;font-family:var(--mono);color:${monthTotals[i] > 0 ? 'var(--green)' : 'var(--muted)'}">${monthTotals[i]} zł</div>
     </div>
   `).join('');
-}
-
-function renderZlecenia() {
-  const now = new Date();
-  const allServices = [];
-  clients.forEach(c => {
-    (c.services || []).forEach(s => {
-      allServices.push({ ...s, clientName: c.name, clientId: c.id, boilerModel: c.boilerModel });
-    });
-  });
-
-  const filtered = allServices.filter(s => {
-    if (currentZFilter === 'all') return true;
-    const d = new Date(s.date);
-    if (currentZFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    if (currentZFilter === 'year') return d.getFullYear() === now.getFullYear();
-    return true;
-  }).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  const totalKwota = filtered.reduce((sum, s) => sum + (+(s.cost||0)) + (+(s.parts||0)), 0);
-  const totalRobo = filtered.reduce((sum, s) => sum + (+(s.cost||0)), 0);
-  const totalCzesci = filtered.reduce((sum, s) => sum + (+(s.parts||0)), 0);
-
-  document.getElementById('zleceniaSummary').innerHTML = `
-    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--accent)">${filtered.length}</div><div class="zl-sum-label">Zleceń</div></div>
-    <div class="zl-sum-card" onclick="openMonthlyReport()" style="cursor:pointer;border:1.5px solid var(--blue)"><div class="zl-sum-num" style="color:var(--blue)">📊 Raport</div><div class="zl-sum-label">Dochód miesięczny</div></div>
-  `;
-
-  const el = document.getElementById('zlecenieList');
-  if (!filtered.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">🔧</div><div class="empty-title">Brak zleceń</div><div class="empty-desc">Dodaj serwis do klienta</div></div>`;
-    return;
-  }
-
-  el.innerHTML = filtered.map(s => {
-    const kwota = (+(s.cost||0)) + (+(s.parts||0));
-    return `<div class="zlecenie-item" onclick="showDetail('${s.clientId}')">
-      <div class="zl-top">
-        <div class="zl-name">${s.clientName}</div>
-        <div class="zl-kwota">${kwota > 0 ? kwota + ' zł' : '—'}</div>
-      </div>
-      <div class="zl-date">${formatDate(s.date)}</div>
-      ${s.boilerModel ? `<div class="zl-desc">🔥 ${s.boilerModel}</div>` : ''}
-      ${s.desc ? `<div class="zl-desc">${s.desc.substring(0,80)}${s.desc.length>80?'...':''}</div>` : ''}
-      ${kwota > 0 ? `<div class="zl-desc" style="color:var(--muted);font-size:11px">Robocizna: ${s.cost||0} zł · Części: ${s.parts||0} zł</div>` : ''}
-    </div>`;
-  }).join('');
 }
 
 // ══════════════════════════════════════════════════
@@ -3343,6 +3469,7 @@ async function scheduleAllNotifications() {
 // ══════════════════════════════════════════════════
 initCal();
 initWizCal();
+initZlecenia();
 initDragHandlers();
 initBackButton();
 initAppLock();
