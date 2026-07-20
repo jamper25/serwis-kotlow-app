@@ -408,9 +408,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 
 /* ── NOTIFICATIONS ── */
 .toast{
-  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(100px);
+  position:fixed;bottom:calc(70px + env(safe-area-inset-bottom, 0px));left:50%;transform:translateX(-50%) translateY(120px);
   background:var(--green);color:#fff;padding:10px 20px;border-radius:10px;
   font-weight:600;font-size:14px;z-index:999;transition:transform .3s;white-space:nowrap;
+  max-width:90vw;overflow:hidden;text-overflow:ellipsis;
 }
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.error{background:var(--red)}
@@ -661,7 +662,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-24 (siatka godzinowa 3-dniowa w Wizytach i Zleceniach)
+    Wersja: 2026-07-12-25 (naprawa pozycji powiadomień - nie zachodzi na dolny pasek)
   </div>
 </div>
 </div>
