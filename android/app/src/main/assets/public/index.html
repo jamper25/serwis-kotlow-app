@@ -217,6 +217,31 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 }
 .cal-day.has-event.overdue::after{background:var(--red)}
 .cal-day.selected{border:2px solid var(--blue)}
+
+/* ── SIATKA 3-DNIOWA (Wizyty / Zlecenia) ── */
+.wk-grid{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;background:var(--surface)}
+.wk-hours-col{width:36px;flex-shrink:0}
+.wk-corner{height:44px;border-bottom:1px solid var(--border)}
+.wk-hour-label{height:52px;font-size:10px;color:var(--muted);text-align:right;padding-right:4px;box-sizing:border-box;position:relative}
+.wk-hour-label span{position:absolute;top:-6px;right:4px}
+.wk-day-col{flex:1;position:relative;border-left:1px solid var(--border);min-width:0}
+.wk-day-header{height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--muted)}
+.wk-day-header.today{color:var(--accent)}
+.wk-day-header .wk-daynum{font-size:15px;color:var(--text)}
+.wk-day-header.today .wk-daynum{color:var(--accent)}
+.wk-hours-area{position:relative}
+.wk-hour-cell{height:52px;border-bottom:1px solid var(--border);cursor:pointer;box-sizing:border-box}
+.wk-hour-cell:active{background:var(--surface2)}
+.wk-tile{
+  position:absolute;left:2px;right:2px;border-radius:6px;padding:4px 6px;
+  overflow:hidden;cursor:grab;color:#fff;font-size:10.5px;line-height:1.25;
+  box-shadow:0 1px 4px rgba(0,0,0,.3);touch-action:none;
+}
+.wk-tile b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-tile.dragging-source{opacity:.25}
+.wk-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.wk-nav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.wk-nav-label{font-size:13px;font-weight:700;color:var(--muted)}
 .cal-day.drop-target{background:var(--blue)33;box-shadow:0 0 0 2px var(--blue)}
 .cal-day:hover:not(.today){background:var(--surface2)}
 
@@ -485,26 +510,25 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <div class="section" id="sec-zlecenia">
   <div class="zlecenia-summary" id="zleceniaSummary"></div>
 
-  <div style="display:flex;gap:8px;margin-bottom:12px">
-    <button class="filter-btn active" id="zlViewWeekBtn" onclick="zlSetView('tydzien')" style="flex:1;text-align:center">Tydzień</button>
-    <button class="filter-btn" id="zlViewMonthBtn" onclick="zlSetView('miesiac')" style="flex:1;text-align:center">Miesiąc</button>
-  </div>
-
   <div class="cal-header">
-    <button class="cal-nav" onclick="zlNavPrev()">‹</button>
+    <button class="cal-nav" onclick="zlMonthPrev()">‹</button>
     <div class="cal-month" id="zlRangeLabel"></div>
-    <button class="cal-nav" onclick="zlNavNext()">›</button>
+    <button class="cal-nav" onclick="zlMonthNext()">›</button>
   </div>
+  <div class="cal-grid" id="zlCalGrid"></div>
 
-  <div class="cal-grid" id="zlCalGrid" style="display:none"></div>
-
-  <div style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 14px;font-size:11px;color:var(--muted)">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 10px;font-size:11px;color:var(--muted)">
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:4px"></span>Konserwacja</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin-right:4px"></span>Awaria</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Pierwsze uruchomienie</div>
   </div>
 
-  <div id="zlContent"></div>
+  <div class="wk-nav-row">
+    <button class="wk-nav-btn" onclick="zlGridPrev()">‹ 3 dni</button>
+    <div class="wk-nav-label" id="zlGridRangeLabel"></div>
+    <button class="wk-nav-btn" onclick="zlGridNext()">3 dni ›</button>
+  </div>
+  <div id="zlGrid"></div>
 </div>
 
 <!-- ══ SEKCJA: KALENDARZ ══ -->
@@ -524,7 +548,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 
 <!-- ══ SEKCJA: WIZYTY (PLANOWANIE) ══ -->
 <div class="section" id="sec-wizyty">
-  <div style="font-size:13px;color:var(--muted);margin-bottom:12px">📞 Klient dzwoni? Zaznacz dzień i wybierz wolną godzinę (8:00–18:00), żeby umówić wizytę.</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:12px">📞 Klient dzwoni? Zaznacz dzień w kalendarzu albo przewiń siatkę, i kliknij wolną godzinę (8:00–18:00), żeby umówić wizytę.</div>
   <div class="cal-header">
     <button class="cal-nav" onclick="wizCalPrev()">‹</button>
     <div class="cal-month" id="wizCalMonthLabel"></div>
@@ -532,9 +556,12 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
   <div class="cal-grid" id="wizCalGrid"></div>
 
-  <div id="wizSelectedDayLabel" style="font-size:15px;font-weight:800;margin:18px 0 10px"></div>
-  <div id="wizSelectedDaySlots" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
-  <div id="wizSelectedDayHistory"></div>
+  <div class="wk-nav-row" style="margin-top:12px">
+    <button class="wk-nav-btn" onclick="wizGridPrev()">‹ 3 dni</button>
+    <div class="wk-nav-label" id="wizGridRangeLabel"></div>
+    <button class="wk-nav-btn" onclick="wizGridNext()">3 dni ›</button>
+  </div>
+  <div id="wizGrid"></div>
 </div>
 
 <!-- ══ SEKCJA: USTAWIENIA ══ -->
@@ -634,7 +661,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-23 (Zlecenia: widok tygodniowy/miesięczny z kolorowymi kafelkami)
+    Wersja: 2026-07-12-24 (siatka godzinowa 3-dniowa w Wizytach i Zleceniach)
   </div>
 </div>
 </div>
@@ -1036,6 +1063,23 @@ function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.s
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
+// Automatyczne przydzielanie godziny zleceniom: 8:00, 10:00, 12:00... (co 2h, wg kolejności na dany dzień)
+const ZL_DURATION_HOURS = 2;
+function countServicesOnDate(dateStr, excludeServiceId) {
+  let count = 0;
+  clients.forEach(c => {
+    (c.services || []).forEach(s => {
+      if (s.date === dateStr && s.time && s.id !== excludeServiceId) count++;
+    });
+  });
+  return count;
+}
+function nextAvailableServiceTime(dateStr, excludeServiceId) {
+  const count = countServicesOnDate(dateStr, excludeServiceId);
+  const hour = Math.min(8 + count * ZL_DURATION_HOURS, 17);
+  return String(hour).padStart(2, '0') + ':00';
+}
+
 // Zdjęcie protokołu przy tworzeniu nowego klienta (pierwszy serwis) - osobne od głównego formularza serwisu
 let newClientPhotoData = null;
 
@@ -1182,7 +1226,7 @@ function showTab(tab) {
   const fab = document.getElementById('fab');
   if (fab) fab.style.display = (tab === 'klienci') ? 'flex' : 'none';
   if (tab === 'kalendarz') renderCalendar();
-  if (tab === 'wizyty') renderWizCalendar();
+  if (tab === 'wizyty') { renderWizCalendar(); renderWizGrid(); }
   if (tab === 'pulpit') renderPulpit();
   if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); }
   if (tab === 'klienci') renderClients();
@@ -1747,9 +1791,11 @@ function saveClient() {
     const hasServiceData = sDesc || sCost || sParts || sNotes || newClientPhotoData || data.lastService;
 
     if (hasServiceData) {
+      const firstServiceDate = data.lastService || new Date().toISOString().split('T')[0];
       data.services = [{
         id: genId(),
-        date: data.lastService || new Date().toISOString().split('T')[0],
+        date: firstServiceDate,
+        time: nextAvailableServiceTime(firstServiceDate, null),
         type: document.getElementById('fServiceType').value || 'konserwacja',
         desc: sDesc,
         cost: sCost,
@@ -1837,6 +1883,7 @@ function saveService() {
   c.services.push({
     id: genId(),
     date,
+    time: nextAvailableServiceTime(date, null),
     type: document.getElementById('sType').value || 'konserwacja',
     desc: document.getElementById('sDesc').value.trim(),
     cost: document.getElementById('sCost').value,
@@ -1910,13 +1957,18 @@ function initWizCal() {
   wizCalYear = now.getFullYear();
   wizCalMonth = now.getMonth();
   selectedWizDay = now.toISOString().split('T')[0];
+  wizGridStart = new Date(now);
+  wizGridStart.setHours(0, 0, 0, 0);
 }
 function wizCalPrev() { wizCalMonth--; if(wizCalMonth<0){wizCalMonth=11;wizCalYear--;} renderWizCalendar(); }
 function wizCalNext() { wizCalMonth++; if(wizCalMonth>11){wizCalMonth=0;wizCalYear++;} renderWizCalendar(); }
 
 function selectWizDay(dateStr) {
   selectedWizDay = dateStr;
+  wizGridStart = new Date(dateStr);
+  wizGridStart.setHours(0, 0, 0, 0);
   renderWizCalendar();
+  renderWizGrid();
 }
 
 function renderWizCalendar() {
@@ -1933,7 +1985,7 @@ function renderWizCalendar() {
   const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
 
-  const start = firstDay; // Nd=0 jest pierwszą kolumną w nagłówku, więc bez konwersji
+  const start = firstDay;
   for (let i = 0; i < start; i++) html += `<div class="cal-day other"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -1945,62 +1997,61 @@ function renderWizCalendar() {
   }
 
   document.getElementById('wizCalGrid').innerHTML = html;
-
-  // Jeśli wybrany dzień jest poza aktualnie wyświetlanym miesiącem, i tak go pokazujemy poniżej
-  renderSelectedWizDay();
 }
 
 // ══════════════════════════════════════════════════
-// WYBRANY DZIEŃ - GODZINY 8-18, ZAPLANOWANE WIZYTY
+// SIATKA 3-DNIOWA GODZINOWA (WSPÓLNA DLA WIZYT I ZLECEŃ)
 // ══════════════════════════════════════════════════
-function renderSelectedWizDay() {
-  const dateStr = selectedWizDay;
-  document.getElementById('wizSelectedDayLabel').textContent = '📅 ' + formatDate(dateStr) + ' — przytrzymaj i przeciągnij, żeby zmienić termin';
+function buildGridSkeleton(gridElId, days, getItemsFn, emptyOnclickFn) {
+  const ROW_H = 52;
+  const hours = [];
+  for (let h = DAY_START_HOUR; h < DAY_END_HOUR; h++) hours.push(h);
+  const hoursHtml = `<div class="wk-corner"></div>` + hours.map(h => `<div class="wk-hour-label"><span>${h}:00</span></div>`).join('');
+  const today = new Date().toISOString().split('T')[0];
+  const dayNamesShort = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
 
-  const dayAppts = appointments.filter(a => a.date === dateStr);
-  let html = '';
-  for (let h = DAY_START_HOUR; h < DAY_END_HOUR; h++) {
-    const timeStr = String(h).padStart(2,'0') + ':00';
-    const appt = dayAppts.find(a => a.time === timeStr);
-    if (appt) {
-      const client = appt.clientId ? clients.find(c => c.id === appt.clientId) : null;
-      const label = client ? client.name : (appt.name || 'Wizyta');
-      const phone = client ? client.phone : appt.phone;
-      html += `<div class="wiz-slot-row" data-drop-date="${dateStr}" data-drop-time="${timeStr}">
-        <div class="wiz-tile" data-appt-id="${appt.id}" onclick="openAppointmentForm('${dateStr}','${timeStr}','${appt.id}')">
-          <div style="font-weight:700;color:var(--accent);width:52px;flex-shrink:0">${timeStr}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600">${label}</div>
-            ${phone ? `<div style="font-size:12px;color:var(--muted)">📞 ${phone}</div>` : ''}
-            ${appt.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${appt.note}</div>` : ''}
-          </div>
-        </div>
-      </div>`;
-    } else {
-      html += `<div class="wiz-slot-row" data-drop-date="${dateStr}" data-drop-time="${timeStr}" onclick="openAppointmentForm('${dateStr}','${timeStr}',null)"
-          style="background:var(--surface);border:1.5px dashed var(--border)">
-        <div style="font-weight:700;color:var(--muted);width:52px;flex-shrink:0">${timeStr}</div>
-        <div style="flex:1;color:var(--muted);font-size:14px">+ Dodaj wizytę</div>
-      </div>`;
-    }
-  }
-  document.getElementById('wizSelectedDaySlots').innerHTML = html;
+  const daysHtml = days.map(d => {
+    const dateStr = d.toISOString().split('T')[0];
+    const isToday = dateStr === today;
+    const items = getItemsFn(dateStr);
+    const cellsHtml = hours.map(h => {
+      const timeStr = String(h).padStart(2, '0') + ':00';
+      return `<div class="wk-hour-cell" data-drop-date="${dateStr}" data-drop-time="${timeStr}" onclick="${emptyOnclickFn(dateStr, timeStr)}"></div>`;
+    }).join('');
+    const tilesHtml = items.map(it => {
+      const hourNum = parseInt((it.time || '08:00').split(':')[0], 10);
+      const startOffset = Math.max(0, hourNum - DAY_START_HOUR);
+      const top = startOffset * ROW_H + 1;
+      const height = ZL_DURATION_HOURS * ROW_H - 3;
+      return `<div class="wk-tile" ${it.apptId ? `data-appt-id="${it.apptId}"` : ''} style="top:${top}px;height:${height}px;background:${it.color}" onclick="event.stopPropagation();${it.onclick}"><b>${it.title}</b>${it.subtitle ? `<div>${it.subtitle}</div>` : ''}</div>`;
+    }).join('');
+    return `<div class="wk-day-col">
+      <div class="wk-day-header ${isToday ? 'today' : ''}"><div>${dayNamesShort[d.getDay()]}</div><div class="wk-daynum">${d.getDate()}</div></div>
+      <div class="wk-hours-area">${cellsHtml}${tilesHtml}</div>
+    </div>`;
+  }).join('');
 
-  // Informacyjnie: wykonane serwisy tego dnia
-  const dayServices = [];
-  clients.forEach(c => {
-    (c.services || []).forEach(s => { if (s.date === dateStr) dayServices.push({ client: c, service: s }); });
+  document.getElementById(gridElId).innerHTML = `<div class="wk-grid"><div class="wk-hours-col">${hoursHtml}</div>${daysHtml}</div>`;
+}
+
+let wizGridStart;
+function wizGridPrev() { wizGridStart.setDate(wizGridStart.getDate() - 3); renderWizGrid(); }
+function wizGridNext() { wizGridStart.setDate(wizGridStart.getDate() + 3); renderWizGrid(); }
+
+function getWizItemsForDate(dateStr) {
+  return appointments.filter(a => a.date === dateStr).map(a => {
+    const client = a.clientId ? clients.find(c => c.id === a.clientId) : null;
+    const label = client ? client.name : (a.name || 'Wizyta');
+    const addr = client ? [client.street, client.city].filter(Boolean).join(', ') : (a.phone || '');
+    return { time: a.time, color: 'var(--accent)', title: label, subtitle: addr, apptId: a.id, onclick: `openAppointmentForm('${dateStr}','${a.time}','${a.id}')` };
   });
-  const histEl = document.getElementById('wizSelectedDayHistory');
-  if (dayServices.length) {
-    histEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 10px">Wykonane serwisy tego dnia</div>` +
-      dayServices.map(item => `<div class="cal-event" onclick="showDetail('${item.client.id}')">
-        <div class="cal-event-dot" style="background:var(--green)"></div>
-        <div style="flex:1"><div class="cal-event-name">${item.client.name}</div><div class="cal-event-date">${item.service.desc || 'Serwis'}</div></div>
-      </div>`).join('');
-  } else {
-    histEl.innerHTML = '';
-  }
+}
+
+function renderWizGrid() {
+  const days = [0, 1, 2].map(i => { const d = new Date(wizGridStart); d.setDate(d.getDate() + i); return d; });
+  const s0 = days[0].toISOString().split('T')[0], s2 = days[2].toISOString().split('T')[0];
+  document.getElementById('wizGridRangeLabel').textContent = `${formatDate(s0)} – ${formatDate(s2)}`;
+  buildGridSkeleton('wizGrid', days, getWizItemsForDate, (d, t) => `openAppointmentForm('${d}','${t}',null)`);
 }
 
 // ══════════════════════════════════════════════════
@@ -2016,7 +2067,7 @@ function initDragHandlers() {
 }
 
 function onTileDragStart(e) {
-  const tile = e.target.closest('.wiz-tile');
+  const tile = e.target.closest('.wiz-tile, .wk-tile[data-appt-id]');
   if (!tile) return;
   const apptId = tile.dataset.apptId;
   if (!apptId) return;
@@ -2111,7 +2162,10 @@ function applyAppointmentMove(apptId, newDate, newTime) {
   saveAppointments();
   showToast(`✅ Przeniesiono na ${formatDate(newDate)}, godz. ${targetTime}`);
   selectedWizDay = newDate;
+  wizGridStart = new Date(newDate);
+  wizGridStart.setHours(0, 0, 0, 0);
   renderWizCalendar();
+  renderWizGrid();
 }
 
 function openAppointmentForm(dateStr, timeStr, apptId) {
@@ -2177,6 +2231,7 @@ function saveAppointment() {
   showToast('✅ Wizyta zapisana!');
   selectedWizDay = date;
   renderWizCalendar();
+  renderWizGrid();
 }
 
 function deleteAppointment() {
@@ -2189,6 +2244,7 @@ function deleteAppointment() {
   showToast('Wizyta usunięta');
   selectedWizDay = date;
   renderWizCalendar();
+  renderWizGrid();
 }
 
 function renderCalendar() {
@@ -2815,10 +2871,18 @@ function updateService(clientId, serviceId) {
   } else if (currentPhotoData) {
     photo = currentPhotoData;
   }
+
+  const newDate = document.getElementById('sDate').value;
+  const oldService = c.services[sIdx];
+  // Przelicz godzinę tylko jeśli zmieniono datę albo wcześniej jej brakowało (stare wpisy sprzed tej funkcji)
+  const time = (newDate !== oldService.date || !oldService.time)
+    ? nextAvailableServiceTime(newDate, serviceId)
+    : oldService.time;
   
   c.services[sIdx] = {
     id: serviceId,
-    date: document.getElementById('sDate').value,
+    date: newDate,
+    time,
     type: document.getElementById('sType').value || 'konserwacja',
     desc: document.getElementById('sDesc').value.trim(),
     cost: document.getElementById('sCost').value,
@@ -3114,96 +3178,60 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 
 // ══════════════════════════════════════════════════
-// HISTORIA ZLECEŃ
+// HISTORIA ZLECEŃ - WIDOK MIESIĘCZNY + SIATKA 3-DNIOWA
 // ══════════════════════════════════════════════════
-// ══════════════════════════════════════════════════
-// HISTORIA ZLECEŃ - WIDOK TYGODNIOWY / MIESIĘCZNY
-// ══════════════════════════════════════════════════
-let zlViewMode = 'tydzien'; // 'tydzien' | 'miesiac'
-let zlWeekStart, zlCalYear, zlCalMonth, zlSelectedDay;
+let zlCalYear, zlCalMonth, zlSelectedDay;
 
 const ZL_TYPE_COLORS = { konserwacja: 'var(--green)', awaria: 'var(--red)', uruchomienie: 'var(--blue)' };
 
 function initZlecenia() {
   const now = new Date();
-  zlWeekStart = getMonday(now);
   zlCalYear = now.getFullYear();
   zlCalMonth = now.getMonth();
   zlSelectedDay = now.toISOString().split('T')[0];
+  zlGridStart = new Date(now);
+  zlGridStart.setHours(0, 0, 0, 0);
 }
 
-function getMonday(d) {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function zlSetView(mode) {
-  zlViewMode = mode;
-  document.getElementById('zlViewWeekBtn').classList.toggle('active', mode === 'tydzien');
-  document.getElementById('zlViewMonthBtn').classList.toggle('active', mode === 'miesiac');
-  document.getElementById('zlCalGrid').style.display = mode === 'miesiac' ? '' : 'none';
-  renderZlecenia();
-}
-
-function zlNavPrev() { if (zlViewMode === 'tydzien') { zlWeekStart.setDate(zlWeekStart.getDate() - 7); } else { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } } renderZlecenia(); }
-function zlNavNext() { if (zlViewMode === 'tydzien') { zlWeekStart.setDate(zlWeekStart.getDate() + 7); } else { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } } renderZlecenia(); }
+function zlMonthPrev() { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } renderZlecenia(); }
+function zlMonthNext() { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } renderZlecenia(); }
 
 function zlSelectDay(dateStr) {
   zlSelectedDay = dateStr;
+  zlGridStart = new Date(dateStr);
+  zlGridStart.setHours(0, 0, 0, 0);
   renderZlecenia();
 }
 
-function getServicesInRange(startStr, endStr) {
-  const list = [];
-  clients.forEach(c => {
-    (c.services || []).forEach(s => {
-      if (s.date >= startStr && s.date <= endStr) list.push({ client: c, service: s });
-    });
-  });
-  return list.sort((a, b) => a.service.date.localeCompare(b.service.date));
+let zlGridStart;
+function zlGridPrev() { zlGridStart.setDate(zlGridStart.getDate() - 3); renderZlGrid(); }
+function zlGridNext() { zlGridStart.setDate(zlGridStart.getDate() + 3); renderZlGrid(); }
+
+function getZlItemsForDate(dateStr) {
+  const items = [];
+  clients.forEach(c => (c.services || []).forEach(s => {
+    if (s.date === dateStr && s.time) {
+      const addr = [c.street, c.city].filter(Boolean).join(', ');
+      items.push({ time: s.time, color: ZL_TYPE_COLORS[s.type || 'konserwacja'], title: c.name, subtitle: addr, onclick: `editService('${c.id}','${s.id}')` });
+    }
+  }));
+  return items;
 }
 
-function zlTileHtml(it) {
-  const type = it.service.type || 'konserwacja';
-  const color = ZL_TYPE_COLORS[type] || ZL_TYPE_COLORS.konserwacja;
-  const addr = [it.client.street, [it.client.zip, it.client.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-  return `<div onclick="editService('${it.client.id}','${it.service.id}')"
-      style="background:${color}1a;border-left:4px solid ${color};border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer">
-    <div style="font-weight:700">${it.client.name}</div>
-    ${addr ? `<div style="font-size:12px;color:var(--muted)">${addr}</div>` : ''}
-  </div>`;
+function openAddServiceForDate(dateStr) {
+  openAddServiceFromCalendar();
+  document.getElementById('sDate').value = dateStr;
 }
 
-function renderZlWeek() {
-  const days = [];
-  for (let i = 0; i < 7; i++) { const d = new Date(zlWeekStart); d.setDate(d.getDate() + i); days.push(d); }
-  const startStr = days[0].toISOString().split('T')[0];
-  const endStr = days[6].toISOString().split('T')[0];
-  const items = getServicesInRange(startStr, endStr);
-
-  document.getElementById('zlRangeLabel').textContent = `${formatDate(startStr)} — ${formatDate(endStr)}`;
-
-  const dayNames = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
-  const today = new Date().toISOString().split('T')[0];
-  let html = '';
-  days.forEach((d, idx) => {
-    const dStr = d.toISOString().split('T')[0];
-    const dayItems = items.filter(it => it.service.date === dStr);
-    html += `<div style="margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:${dStr === today ? 'var(--accent)' : 'var(--muted)'};text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${dayNames[idx]}, ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}${dStr === today ? ' · dziś' : ''}</div>
-      ${dayItems.length ? dayItems.map(it => zlTileHtml(it)).join('') : '<div style="font-size:13px;color:var(--muted);padding:2px 0 6px">—</div>'}
-    </div>`;
-  });
-  document.getElementById('zlContent').innerHTML = html;
-  return items.length;
+function renderZlGrid() {
+  const days = [0, 1, 2].map(i => { const d = new Date(zlGridStart); d.setDate(d.getDate() + i); return d; });
+  const s0 = days[0].toISOString().split('T')[0], s2 = days[2].toISOString().split('T')[0];
+  document.getElementById('zlGridRangeLabel').textContent = `${formatDate(s0)} – ${formatDate(s2)}`;
+  buildGridSkeleton('zlGrid', days, getZlItemsForDate, (d) => `openAddServiceForDate('${d}')`);
 }
 
 function renderZlMonth() {
-  const months = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+  const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
   document.getElementById('zlRangeLabel').textContent = `${months[zlCalMonth]} ${zlCalYear}`;
 
   const firstDay = new Date(zlCalYear, zlCalMonth, 1).getDay();
@@ -3211,51 +3239,37 @@ function renderZlMonth() {
   const today = new Date().toISOString().split('T')[0];
 
   const dayTypes = {};
+  let monthCount = 0;
   clients.forEach(c => (c.services || []).forEach(s => {
     const d = new Date(s.date);
     if (d.getFullYear() === zlCalYear && d.getMonth() === zlCalMonth) {
       (dayTypes[s.date] = dayTypes[s.date] || []).push(s.type || 'konserwacja');
+      monthCount++;
     }
   }));
 
-  const dayNames = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
+  const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
   for (let i = 0; i < firstDay; i++) html += `<div class="cal-day other"></div>`;
 
-  let monthCount = 0;
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${zlCalYear}-${String(zlCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const isToday = dateStr === today;
     const isSelected = dateStr === zlSelectedDay;
     const types = dayTypes[dateStr] || [];
-    monthCount += types.length;
     const uniqueTypes = [...new Set(types)].slice(0, 3);
     const dots = uniqueTypes.map(t => `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${ZL_TYPE_COLORS[t] || ZL_TYPE_COLORS.konserwacja};margin:0 1px"></span>`).join('');
     html += `<div class="cal-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="zlSelectDay('${dateStr}')" style="position:relative">${d}${dots ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);white-space:nowrap">${dots}</div>` : ''}</div>`;
   }
   document.getElementById('zlCalGrid').innerHTML = html;
-
-  // Lista wybranego dnia pod kalendarzem
-  const dayItems = getServicesInRange(zlSelectedDay, zlSelectedDay);
-  let contentHtml = `<div style="font-size:13px;font-weight:700;margin-bottom:8px">📅 ${formatDate(zlSelectedDay)}</div>`;
-  contentHtml += dayItems.length ? dayItems.map(it => zlTileHtml(it)).join('') : '<div style="font-size:13px;color:var(--muted)">Brak zleceń tego dnia</div>';
-  document.getElementById('zlContent').innerHTML = contentHtml;
-
   return monthCount;
 }
 
 function renderZlecenia() {
-  const count = zlViewMode === 'tydzien' ? renderZlWeek() : renderZlMonth();
-
-  if (!count) {
-    const el = document.getElementById('zlContent');
-    if (zlViewMode === 'tydzien' && !el.innerHTML.includes('—')) {
-      // widok tygodniowy zawsze pokazuje dni, nawet puste - nic dodatkowego nie trzeba
-    }
-  }
-
+  const count = renderZlMonth();
+  renderZlGrid();
   document.getElementById('zleceniaSummary').innerHTML = `
-    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--accent)">${count}</div><div class="zl-sum-label">Zleceń</div></div>
+    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--accent)">${count}</div><div class="zl-sum-label">Zleceń w tym miesiącu</div></div>
     <div class="zl-sum-card" onclick="openMonthlyReport()" style="cursor:pointer;border:1.5px solid var(--blue)"><div class="zl-sum-num" style="color:var(--blue)">📊 Raport</div><div class="zl-sum-label">Dochód miesięczny</div></div>
   `;
 }
