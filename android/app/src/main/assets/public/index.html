@@ -79,6 +79,12 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 }
 .filter-btn.active{border-color:var(--accent);background:var(--accent)22;color:var(--accent)}
 
+.zl-mode-btn{
+  padding:8px 4px;border-radius:9px;border:none;background:transparent;
+  color:var(--muted);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;
+}
+.zl-mode-btn.active{background:var(--accent);color:#fff}
+
 /* ── KLIENT CARD ── */
 .client-list{display:flex;flex-direction:column;gap:10px}
 .client-card{
@@ -223,6 +229,16 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 }
 .cal-day.has-event.overdue::after{background:var(--red)}
 .cal-day.selected{border:2px solid var(--blue)}
+
+/* ── ZLECENIA: WIĘKSZA SIATKA MIESIĘCZNA Z LICZBĄ ZLECEŃ ── */
+.zlm-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:8px}
+.zlm-day{min-height:52px;border-radius:8px;padding:4px 3px;cursor:pointer;background:var(--surface2);display:flex;flex-direction:column;transition:all .2s}
+.zlm-day.other{visibility:hidden;cursor:default}
+.zlm-day.today{box-shadow:0 0 0 1.5px var(--accent) inset}
+.zlm-day.today .zlm-daynum{color:var(--accent)}
+.zlm-day.selected{box-shadow:0 0 0 2px var(--blue) inset}
+.zlm-daynum{font-size:13px;font-weight:700}
+.zlm-count{font-size:10px;font-weight:700;color:var(--accent);margin-top:3px;line-height:1.2}
 
 /* ── SIATKA 3-DNIOWA (Wizyty / Zlecenia) ── */
 .wk-grid{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;background:var(--surface)}
@@ -517,25 +533,48 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <div class="section" id="sec-zlecenia">
   <div class="zlecenia-summary" id="zleceniaSummary"></div>
 
-  <div class="cal-header">
-    <button class="cal-nav" onclick="zlMonthPrev()">‹</button>
-    <div class="cal-month" id="zlRangeLabel"></div>
-    <button class="cal-nav" onclick="zlMonthNext()">›</button>
+  <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--surface2);border-radius:12px;padding:4px">
+    <button class="zl-mode-btn active" id="zlModeMiesiacBtn" onclick="zlSetMode('miesiac')" style="flex:1">Miesiąc</button>
+    <button class="zl-mode-btn" id="zlModeTydzienBtn" onclick="zlSetMode('tydzien')" style="flex:1">Tydzień</button>
+    <button class="zl-mode-btn" id="zlModeDzienBtn" onclick="zlSetMode('dzien')" style="flex:1">Dzień</button>
   </div>
-  <div class="cal-grid" id="zlCalGrid"></div>
 
-  <div style="display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 10px;font-size:11px;color:var(--muted)">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:var(--muted)">
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:4px"></span>Konserwacja</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin-right:4px"></span>Awaria</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Pierwsze uruchomienie</div>
   </div>
 
-  <div class="wk-nav-row">
-    <button class="wk-nav-btn" onclick="zlGridPrev()">‹ 3 dni</button>
-    <div class="wk-nav-label" id="zlGridRangeLabel"></div>
-    <button class="wk-nav-btn" onclick="zlGridNext()">3 dni ›</button>
+  <!-- WIDOK: MIESIĄC -->
+  <div id="zlViewMiesiac">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="zlMonthPrev()">‹</button>
+      <div class="cal-month" id="zlRangeLabel"></div>
+      <button class="cal-nav" onclick="zlMonthNext()">›</button>
+    </div>
+    <div class="cal-grid" id="zlCalGrid"></div>
+    <div id="zlMonthDayList" style="margin-top:14px"></div>
   </div>
-  <div id="zlGrid"></div>
+
+  <!-- WIDOK: TYDZIEŃ -->
+  <div id="zlViewTydzien" style="display:none">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="zlWeekPrev()">‹</button>
+      <div class="cal-month" id="zlWeekRangeLabel"></div>
+      <button class="cal-nav" onclick="zlWeekNext()">›</button>
+    </div>
+    <div id="zlWeekList"></div>
+  </div>
+
+  <!-- WIDOK: DZIEŃ (siatka godzinowa, 3 dni na raz) -->
+  <div id="zlViewDzien" style="display:none">
+    <div class="wk-nav-row">
+      <button class="wk-nav-btn" onclick="zlGridPrev()">‹ 3 dni</button>
+      <div class="wk-nav-label" id="zlGridRangeLabel"></div>
+      <button class="wk-nav-btn" onclick="zlGridNext()">3 dni ›</button>
+    </div>
+    <div id="zlGrid"></div>
+  </div>
 </div>
 
 <!-- ══ SEKCJA: KALENDARZ ══ -->
@@ -668,7 +707,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-26 (naprawa okien na komputerze: szerokość 3/4 + reset przewinięcia)
+    Wersja: 2026-07-12-27 (Zlecenia: przełącznik Miesiąc/Tydzień/Dzień)
   </div>
 </div>
 </div>
@@ -3189,9 +3228,9 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 
 // ══════════════════════════════════════════════════
-// HISTORIA ZLECEŃ - WIDOK MIESIĘCZNY + SIATKA 3-DNIOWA
+// HISTORIA ZLECEŃ - TRYBY: MIESIĄC / TYDZIEŃ / DZIEŃ
 // ══════════════════════════════════════════════════
-let zlCalYear, zlCalMonth, zlSelectedDay;
+let zlCalYear, zlCalMonth, zlSelectedDay, zlMode = 'miesiac', zlWeekStart;
 
 const ZL_TYPE_COLORS = { konserwacja: 'var(--green)', awaria: 'var(--red)', uruchomienie: 'var(--blue)' };
 
@@ -3202,15 +3241,36 @@ function initZlecenia() {
   zlSelectedDay = now.toISOString().split('T')[0];
   zlGridStart = new Date(now);
   zlGridStart.setHours(0, 0, 0, 0);
+  zlWeekStart = getMondayOf(now);
+}
+
+function getMondayOf(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function zlSetMode(mode) {
+  zlMode = mode;
+  document.getElementById('zlModeMiesiacBtn').classList.toggle('active', mode === 'miesiac');
+  document.getElementById('zlModeTydzienBtn').classList.toggle('active', mode === 'tydzien');
+  document.getElementById('zlModeDzienBtn').classList.toggle('active', mode === 'dzien');
+  document.getElementById('zlViewMiesiac').style.display = mode === 'miesiac' ? '' : 'none';
+  document.getElementById('zlViewTydzien').style.display = mode === 'tydzien' ? '' : 'none';
+  document.getElementById('zlViewDzien').style.display = mode === 'dzien' ? '' : 'none';
+  renderZlecenia();
 }
 
 function zlMonthPrev() { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } renderZlecenia(); }
 function zlMonthNext() { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } renderZlecenia(); }
+function zlWeekPrev() { zlWeekStart.setDate(zlWeekStart.getDate() - 7); renderZlecenia(); }
+function zlWeekNext() { zlWeekStart.setDate(zlWeekStart.getDate() + 7); renderZlecenia(); }
 
 function zlSelectDay(dateStr) {
   zlSelectedDay = dateStr;
-  zlGridStart = new Date(dateStr);
-  zlGridStart.setHours(0, 0, 0, 0);
   renderZlecenia();
 }
 
@@ -3229,6 +3289,22 @@ function getZlItemsForDate(dateStr) {
   return items;
 }
 
+function zlTileHtml(clientObj, service) {
+  const color = ZL_TYPE_COLORS[service.type || 'konserwacja'];
+  const addr = [clientObj.street, clientObj.city].filter(Boolean).join(', ');
+  return `<div onclick="editService('${clientObj.id}','${service.id}')"
+      style="background:${color}1a;border-left:4px solid ${color};border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer">
+    <div style="font-weight:700">${clientObj.name}</div>
+    ${addr ? `<div style="font-size:12px;color:var(--muted)">${addr}</div>` : ''}
+  </div>`;
+}
+
+function getServicesOnDate(dateStr) {
+  const list = [];
+  clients.forEach(c => (c.services || []).forEach(s => { if (s.date === dateStr) list.push({ client: c, service: s }); }));
+  return list;
+}
+
 function openAddServiceForDate(dateStr) {
   openAddServiceFromCalendar();
   document.getElementById('sDate').value = dateStr;
@@ -3241,6 +3317,7 @@ function renderZlGrid() {
   buildGridSkeleton('zlGrid', days, getZlItemsForDate, (d) => `openAddServiceForDate('${d}')`);
 }
 
+// ── WIDOK MIESIĄC: kalendarz z liczbą zleceń, bez kwot ──
 function renderZlMonth() {
   const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
   document.getElementById('zlRangeLabel').textContent = `${months[zlCalMonth]} ${zlCalYear}`;
@@ -3249,38 +3326,76 @@ function renderZlMonth() {
   const daysInMonth = new Date(zlCalYear, zlCalMonth + 1, 0).getDate();
   const today = new Date().toISOString().split('T')[0];
 
-  const dayTypes = {};
+  const dayCounts = {};
   let monthCount = 0;
   clients.forEach(c => (c.services || []).forEach(s => {
     const d = new Date(s.date);
     if (d.getFullYear() === zlCalYear && d.getMonth() === zlCalMonth) {
-      (dayTypes[s.date] = dayTypes[s.date] || []).push(s.type || 'konserwacja');
+      dayCounts[s.date] = (dayCounts[s.date] || 0) + 1;
       monthCount++;
     }
   }));
 
-  const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
+  // Poniedziałek jako pierwszy dzień tygodnia
+  const dayNames = ['Pon','Wt','Śr','Czw','Pt','Sob','Ndz'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
-  for (let i = 0; i < firstDay; i++) html += `<div class="cal-day other"></div>`;
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+  for (let i = 0; i < startOffset; i++) html += `<div class="cal-day other"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${zlCalYear}-${String(zlCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const isToday = dateStr === today;
     const isSelected = dateStr === zlSelectedDay;
-    const types = dayTypes[dateStr] || [];
-    const uniqueTypes = [...new Set(types)].slice(0, 3);
-    const dots = uniqueTypes.map(t => `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${ZL_TYPE_COLORS[t] || ZL_TYPE_COLORS.konserwacja};margin:0 1px"></span>`).join('');
-    html += `<div class="cal-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="zlSelectDay('${dateStr}')" style="position:relative">${d}${dots ? `<div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);white-space:nowrap">${dots}</div>` : ''}</div>`;
+    const count = dayCounts[dateStr] || 0;
+    html += `<div class="cal-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="zlSelectDay('${dateStr}')" style="position:relative">${d}${count ? `<div style="font-size:9px;color:var(--accent);font-weight:700;margin-top:1px">${count} zlec.</div>` : ''}</div>`;
   }
   document.getElementById('zlCalGrid').innerHTML = html;
+
+  // Lista klientów wybranego dnia pod kalendarzem
+  const dayItems = getServicesOnDate(zlSelectedDay);
+  const listEl = document.getElementById('zlMonthDayList');
+  listEl.innerHTML = `<div style="font-size:13px;font-weight:700;margin-bottom:8px">📅 ${formatDate(zlSelectedDay)}</div>` +
+    (dayItems.length ? dayItems.map(it => zlTileHtml(it.client, it.service)).join('') : '<div style="font-size:13px;color:var(--muted)">Brak zleceń tego dnia</div>');
+
   return monthCount;
 }
 
+// ── WIDOK TYDZIEŃ: lista dni z kafelkami klientów ──
+function renderZlWeekList() {
+  const days = [0,1,2,3,4,5,6].map(i => { const d = new Date(zlWeekStart); d.setDate(d.getDate()+i); return d; });
+  const s0 = days[0].toISOString().split('T')[0], s6 = days[6].toISOString().split('T')[0];
+  document.getElementById('zlWeekRangeLabel').textContent = `${formatDate(s0)} — ${formatDate(s6)}`;
+
+  const dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+  const today = new Date().toISOString().split('T')[0];
+  let html = '';
+  let weekCount = 0;
+  days.forEach((d, idx) => {
+    const dStr = d.toISOString().split('T')[0];
+    const dayItems = getServicesOnDate(dStr);
+    weekCount += dayItems.length;
+    html += `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:${dStr === today ? 'var(--accent)' : 'var(--muted)'};text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${dayNames[idx]}, ${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')}${dStr === today ? ' · dziś' : ''}</div>
+      ${dayItems.length ? dayItems.map(it => zlTileHtml(it.client, it.service)).join('') : '<div style="font-size:13px;color:var(--muted);padding:2px 0 6px">—</div>'}
+    </div>`;
+  });
+  document.getElementById('zlWeekList').innerHTML = html;
+  return weekCount;
+}
+
 function renderZlecenia() {
-  const count = renderZlMonth();
-  renderZlGrid();
+  let count;
+  if (zlMode === 'miesiac') {
+    count = renderZlMonth();
+  } else if (zlMode === 'tydzien') {
+    count = renderZlWeekList();
+  } else {
+    renderZlGrid();
+    count = getZlItemsForDate(zlGridStart.toISOString().split('T')[0]).length;
+  }
+
   document.getElementById('zleceniaSummary').innerHTML = `
-    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--accent)">${count}</div><div class="zl-sum-label">Zleceń w tym miesiącu</div></div>
+    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--accent)">${count}</div><div class="zl-sum-label">Zleceń</div></div>
     <div class="zl-sum-card" onclick="openMonthlyReport()" style="cursor:pointer;border:1.5px solid var(--blue)"><div class="zl-sum-num" style="color:var(--blue)">📊 Raport</div><div class="zl-sum-label">Dochód miesięczny</div></div>
   `;
 }
