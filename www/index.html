@@ -53,10 +53,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 .bn-item.active{color:var(--accent)}
 
 /* ── CONTENT ── */
-.content{padding:72px 16px 90px;max-width:600px;margin:0 auto}
+/* .content: padding przeniesiony na .section, żeby nieaktywne zakładki nie zajmowały miejsca */
 
 /* ── SECTIONS ── */
-.section{display:none}
+.section{display:none;padding:72px 16px 90px;max-width:600px;margin:0 auto;box-sizing:border-box}
 .section.active{display:block}
 
 /* ── SEARCH BAR ── */
@@ -454,7 +454,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <button class="bn-item" data-tab="klienci" onclick="showTab('klienci')">
     <span class="bn-icon">👥</span><span class="bn-label">Klienci</span>
   </button>
-  <button class="bn-item" data-tab="kalendarz" onclick="showTab('kalendarz')">
+  <button class="bn-item" data-tab="kalendarz" onclick="showTab('kalendarz')" style="display:none">
     <span class="bn-icon">📅</span><span class="bn-label">Termin</span>
   </button>
   <button class="bn-item" data-tab="wizyty" onclick="showTab('wizyty')">
@@ -489,7 +489,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 </div>
 
 <!-- ══ SEKCJA: PULPIT ══ -->
-<div class="content">
 <div class="section active" id="sec-pulpit">
   <div id="pulpitGreeting" style="font-size:22px;font-weight:800;margin-bottom:4px"></div>
   <div style="font-size:13px;color:var(--muted);margin-bottom:18px" id="pulpitDate"></div>
@@ -508,10 +507,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Nadchodzące wizyty · 7 dni</div>
   <div id="pulpitUpcomingList"></div>
 </div>
-</div>
 
 <!-- ══ SEKCJA: KLIENCI ══ -->
-<div class="content">
 <div class="section" id="sec-klienci">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -571,6 +568,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 
   <!-- WIDOK: DZIEŃ (siatka godzinowa, 3 dni na raz) -->
   <div id="zlViewDzien" style="display:none">
+    <button class="io-btn" onclick="openAddServiceFromCalendar()" style="margin-bottom:14px;width:100%;background:var(--green)">
+      <span class="io-icon">➕</span> Dodaj zlecenie
+    </button>
     <div class="wk-nav-row">
       <button class="wk-nav-btn" onclick="zlGridPrev()">‹ 3 dni</button>
       <div class="wk-nav-label" id="zlGridRangeLabel"></div>
@@ -730,9 +730,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-28 (Magazyn części z OCR + integracja z serwisami)
+    Wersja: 2026-07-12-32 (OCR rozpoznaje też daty - wykonania i następnego przeglądu)
   </div>
-</div>
 </div>
 
 <!-- ══ MODAL: DODAJ/EDYTUJ KLIENTA ══ -->
@@ -740,6 +739,11 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <div class="modal">
   <div class="modal-handle"></div>
   <div class="modal-title" id="modalClientTitle">Nowy klient</div>
+
+  <button class="io-btn" onclick="document.getElementById('boilerScanCamera').click()" style="background:var(--blue);margin-bottom:16px">
+    <span class="io-icon">📷</span> Skanuj protokół serwisowy (OCR)
+  </button>
+  <input type="file" id="boilerScanCamera" accept="image/*" capture="environment" style="display:none" onchange="scanBoilerData(this)">
 
   <div class="form-section">Dane osobowe</div>
   <div class="form-group">
@@ -778,19 +782,26 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     <label class="form-label">Producent / Model</label>
     <input class="form-input" id="fBoilerModel" placeholder="np. Viessmann Vitodens 200-W">
   </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Fabryka</label>
+      <input class="form-input" id="fFabryka" placeholder="np. 8290">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Kod FD</label>
+      <input class="form-input" id="fFD" placeholder="np. 851">
+    </div>
+  </div>
   <div class="form-row">
     <div class="form-group">
       <label class="form-label">Nr seryjny</label>
-      <input class="form-input" id="fBoilerSerial" placeholder="np. 7231456">
+      <input class="form-input" id="fBoilerSerial" placeholder="np. 069782">
     </div>
     <div class="form-group">
-      <label class="form-label">Rok produkcji</label>
-      <input class="form-input" id="fBoilerYear" type="number" placeholder="np. 2018">
+      <label class="form-label">Nr katalogowy</label>
+      <input class="form-input" id="fBoilerKatalogowy" placeholder="np. 7236101563">
     </div>
-  </div>
-  <div class="form-group">
-    <label class="form-label">Moc kotła (kW)</label>
-    <input class="form-input" id="fBoilerPower" type="number" placeholder="np. 24">
   </div>
 
   <div class="form-section">Serwis</div>
@@ -1171,6 +1182,17 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Wybierz, który fragment to numer części (albo wpisz ręcznie, jeśli żaden nie pasuje):</div>
   <div id="scanCandidatesList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
   <button class="btn btn-secondary" onclick="closeModal('modalScanResult')">Zamknij, wpiszę ręcznie</button>
+</div>
+</div>
+
+<!-- ══ MODAL: WYBIERZ POLE DLA ZESKANOWANEGO PROTOKOŁU KOTŁA ══ -->
+<div class="modal-overlay" id="modalBoilerScanResult">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📷 Wykryty tekst z protokołu</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Dla każdego wykrytego fragmentu dotknij właściwe pole, do którego go wpisać:</div>
+  <div id="boilerScanCandidatesList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+  <button class="btn btn-secondary" onclick="closeModal('modalBoilerScanResult')">Zamknij</button>
 </div>
 </div>
 
@@ -1769,7 +1791,7 @@ function showDetail(id) {
       <div class="detail-info">
         ${c.phone ? `<div class="detail-row"><span class="icon">📞</span><div><div class="val">${c.phone}</div>${c.phone2 ? `<div class="val">${c.phone2}</div>` : ''}</div></div>` : ''}
         ${c.street||c.city ? `<div class="detail-row"><span class="icon">📍</span><div><div class="val">${c.street || ''}</div><div class="val">${[c.zip, c.city].filter(Boolean).join(' ')}</div></div></div>` : ''}
-        ${c.boilerModel ? `<div class="detail-row"><span class="icon">🔥</span><div><div class="val">${c.boilerModel}</div>${c.boilerSerial ? `<div class="lbl">Nr ser: ${c.boilerSerial}</div>` : ''}${c.boilerYear ? `<div class="lbl">Rok: ${c.boilerYear}${c.boilerPower ? ` · ${c.boilerPower} kW` : ''}</div>` : ''}</div></div>` : ''}
+        ${c.boilerModel ? `<div class="detail-row"><span class="icon">🔥</span><div><div class="val">${c.boilerModel}</div>${c.boilerSerial ? `<div class="lbl">Nr ser: ${c.boilerSerial}</div>` : ''}${(c.boilerFabryka || c.boilerFD || c.boilerKatalogowy) ? `<div class="lbl">${c.boilerFabryka ? `Fabryka: ${c.boilerFabryka} ` : ''}${c.boilerFD ? `· FD: ${c.boilerFD} ` : ''}${c.boilerKatalogowy ? `· Nr kat.: ${c.boilerKatalogowy}` : ''}</div>` : ''}</div></div>` : ''}
         ${c.lastService ? `<div class="detail-row"><span class="icon">🔧</span><div><div class="lbl">Ostatni serwis</div><div class="val">${formatDate(c.lastService)}</div></div></div>` : ''}
         ${c.nextService ? `<div class="detail-row"><span class="icon">📅</span><div><div class="lbl">Następny serwis</div><div class="val">${formatDate(c.nextService)}</div></div></div>` : ''}
         ${c.notes ? `<div class="detail-row"><span class="icon">📝</span><div class="val">${c.notes}</div></div>` : ''}
@@ -1827,7 +1849,7 @@ function openAddClient() {
   editingClientId = null;
   document.getElementById('modalClientTitle').textContent = 'Nowy klient';
   document.getElementById('btnDeleteClient').style.display = 'none';
-  ['fName','fPhone','fPhone2','fStreet','fZip','fCity','fBoilerModel','fBoilerSerial','fBoilerYear','fBoilerPower','fLastService','fNextService','fNotes'].forEach(id => {
+  ['fName','fPhone','fPhone2','fStreet','fZip','fCity','fBoilerModel','fBoilerSerial','fFabryka','fFD','fBoilerKatalogowy','fLastService','fNextService','fNotes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('fInterval').value = '12';
@@ -1850,8 +1872,9 @@ function openEditClient(id) {
   document.getElementById('fCity').value = c.city || '';
   document.getElementById('fBoilerModel').value = c.boilerModel || '';
   document.getElementById('fBoilerSerial').value = c.boilerSerial || '';
-  document.getElementById('fBoilerYear').value = c.boilerYear || '';
-  document.getElementById('fBoilerPower').value = c.boilerPower || '';
+  document.getElementById('fFabryka').value = c.boilerFabryka || '';
+  document.getElementById('fFD').value = c.boilerFD || '';
+  document.getElementById('fBoilerKatalogowy').value = c.boilerKatalogowy || '';
   document.getElementById('fLastService').value = c.lastService || '';
   document.getElementById('fNextService').value = c.nextService || '';
   document.getElementById('fInterval').value = c.interval || '12';
@@ -1899,8 +1922,9 @@ function saveClient() {
     city: document.getElementById('fCity').value.trim(),
     boilerModel: document.getElementById('fBoilerModel').value.trim(),
     boilerSerial: document.getElementById('fBoilerSerial').value.trim(),
-    boilerYear: document.getElementById('fBoilerYear').value.trim(),
-    boilerPower: document.getElementById('fBoilerPower').value.trim(),
+    boilerFabryka: document.getElementById('fFabryka').value.trim(),
+    boilerFD: document.getElementById('fFD').value.trim(),
+    boilerKatalogowy: document.getElementById('fBoilerKatalogowy').value.trim(),
     lastService: document.getElementById('fLastService').value,
     nextService: document.getElementById('fNextService').value,
     interval: document.getElementById('fInterval').value,
@@ -2800,8 +2824,9 @@ function openAddNewClientQuick() {
     city: '',
     boilerModel: '',
     boilerSerial: '',
-    boilerYear: '',
-    boilerPower: '',
+    boilerFabryka: '',
+    boilerFD: '',
+    boilerKatalogowy: '',
     lastService: '',
     nextService: '',
     notes: '',
@@ -2829,8 +2854,9 @@ function openAddNewClientFromService() {
     city: '',
     boilerModel: '',
     boilerSerial: '',
-    boilerYear: '',
-    boilerPower: '',
+    boilerFabryka: '',
+    boilerFD: '',
+    boilerKatalogowy: '',
     lastService: '',
     nextService: '',
     notes: '',
@@ -3599,8 +3625,104 @@ async function scanPartNumber(input) {
   }
 }
 
-// ══════════════════════════════════════════════════
-// HISTORIA ZLECEŃ - TRYBY: MIESIĄC / TYDZIEŃ / DZIEŃ
+// ── Skanowanie protokołu/tabliczki kotła (fabryka, FD, nr seryjny, nr katalogowy) ──
+function extractAllLines(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  return [...new Set(lines)];
+}
+
+function showBoilerScanCandidates(candidates) {
+  const el = document.getElementById('boilerScanCandidatesList');
+  if (!candidates.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px">Nie znaleziono tekstu. Wpisz dane ręcznie.</div>';
+  } else {
+    const fields = [
+      { id: 'fName', label: 'Imię i nazwisko' },
+      { id: 'fPhone', label: 'Telefon' },
+      { id: 'fStreet', label: 'Ulica' },
+      { id: 'fZip', label: 'Kod poczt.' },
+      { id: 'fCity', label: 'Miasto' },
+      { id: 'fBoilerModel', label: 'Model kotła' },
+      { id: 'fFabryka', label: 'Fabryka' },
+      { id: 'fFD', label: 'FD' },
+      { id: 'fBoilerSerial', label: 'Nr seryjny' },
+      { id: 'fBoilerKatalogowy', label: 'Nr katalogowy' },
+      { id: 'fLastService', label: 'Data wykonania' },
+      { id: 'fNextService', label: 'Nast. przegląd' },
+    ];
+    el.innerHTML = candidates.map(c => `
+      <div style="background:var(--surface2);border-radius:10px;padding:10px">
+        <div style="font-family:var(--mono);font-weight:700;margin-bottom:8px;word-break:break-word">${c}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${fields.map(f => `<button class="io-btn" style="flex:1;min-width:80px;padding:6px 8px;font-size:11px" onclick="assignBoilerField('${f.id}','${c.replace(/'/g, "\\'")}')">→ ${f.label}</button>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+  openModal('modalBoilerScanResult');
+}
+
+function tryParseDateToISO(str) {
+  const digits = str.replace(/\D/g, '');
+  if (digits.length !== 8) return null;
+  let y, m, d;
+  if (digits.startsWith('19') || digits.startsWith('20')) {
+    y = digits.slice(0, 4); m = digits.slice(4, 6); d = digits.slice(6, 8);
+  } else {
+    d = digits.slice(0, 2); m = digits.slice(2, 4); y = digits.slice(4, 8);
+  }
+  const mi = parseInt(m, 10), di = parseInt(d, 10);
+  if (mi < 1 || mi > 12 || di < 1 || di > 31) return null;
+  return `${y}-${m}-${d}`;
+}
+
+function assignBoilerField(fieldId, value) {
+  if (fieldId === 'fLastService' || fieldId === 'fNextService') {
+    const iso = tryParseDateToISO(value);
+    if (iso) {
+      document.getElementById(fieldId).value = iso;
+      showToast('✅ Wpisano datę!');
+    } else {
+      showToast('⚠️ Nie rozpoznano formatu daty - wpisz ręcznie', true);
+    }
+    return;
+  }
+  document.getElementById(fieldId).value = value;
+  showToast('✅ Wpisano!');
+}
+
+async function scanBoilerData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (!plugins || !plugins.Filesystem || !plugins.TextRecognition) {
+    showToast('OCR działa tylko w zainstalowanej aplikacji', true);
+    input.value = '';
+    return;
+  }
+  const { Filesystem, TextRecognition } = plugins;
+  showToast('🔍 Skanowanie protokołu...');
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const base64 = dataUrl.split(',')[1];
+    const fileName = `boiler-scan-${Date.now()}.jpg`;
+    await Filesystem.writeFile({ path: fileName, data: base64, directory: 'CACHE' });
+    const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
+    const result = await TextRecognition.processImage({ path: uri, script: 'LATIN' });
+    const candidates = extractAllLines(result.text || '');
+    showBoilerScanCandidates(candidates);
+  } catch (e) {
+    console.log('OCR error', e);
+    showToast('Błąd skanowania: ' + (e.message || ''), true);
+  } finally {
+    input.value = '';
+  }
+}
 // ══════════════════════════════════════════════════
 let zlCalYear, zlCalMonth, zlSelectedDay, zlMode = 'miesiac', zlWeekStart;
 
@@ -3989,9 +4111,9 @@ initAppLock();
 // Demo dane jeśli baza pusta
 if (!clients.length) {
   clients = [
-    {id:genId(),name:'Jan Kowalski',phone:'500 100 200',street:'Kwiatowa 5',zip:'00-001',city:'Warszawa',boilerModel:'Viessmann Vitodens 200-W',boilerSerial:'7234561',boilerYear:'2019',boilerPower:'24',lastService:'2024-10-15',nextService:'2025-04-15',interval:'6',notes:'Kod do domofonu: 1234',services:[{id:genId(),date:'2024-10-15',desc:'Czyszczenie palnika, wymiana filtra',cost:'250',parts:'80',notes:''}]},
-    {id:genId(),name:'Anna Nowak',phone:'600 200 300',street:'Lipowa 12/3',zip:'00-002',city:'Warszawa',boilerModel:'Junkers Cerapur',boilerSerial:'JU123456',boilerYear:'2021',boilerPower:'18',lastService:'2025-01-10',nextService:'2026-01-10',interval:'12',notes:'',services:[]},
-    {id:genId(),name:'Piotr Wiśniewski',phone:'700 300 400',street:'Różana 7',zip:'05-100',city:'Nowy Dwór Maz.',boilerModel:'Vaillant ecoTEC',boilerSerial:'VL789012',boilerYear:'2017',boilerPower:'28',lastService:'2023-11-20',nextService:'2024-11-20',interval:'12',notes:'Pies w domu — uważać!',services:[]},
+    {id:genId(),name:'Jan Kowalski',phone:'500 100 200',street:'Kwiatowa 5',zip:'00-001',city:'Warszawa',boilerModel:'Viessmann Vitodens 200-W',boilerSerial:'7234561',boilerFabryka:'8290',boilerFD:'851',boilerKatalogowy:'',lastService:'2024-10-15',nextService:'2025-04-15',interval:'6',notes:'Kod do domofonu: 1234',services:[{id:genId(),date:'2024-10-15',desc:'Czyszczenie palnika, wymiana filtra',cost:'250',parts:'80',notes:''}]},
+    {id:genId(),name:'Anna Nowak',phone:'600 200 300',street:'Lipowa 12/3',zip:'00-002',city:'Warszawa',boilerModel:'Junkers Cerapur',boilerSerial:'JU123456',boilerFabryka:'',boilerFD:'',boilerKatalogowy:'',lastService:'2025-01-10',nextService:'2026-01-10',interval:'12',notes:'',services:[]},
+    {id:genId(),name:'Piotr Wiśniewski',phone:'700 300 400',street:'Różana 7',zip:'05-100',city:'Nowy Dwór Maz.',boilerModel:'Vaillant ecoTEC',boilerSerial:'VL789012',boilerFabryka:'',boilerFD:'',boilerKatalogowy:'',lastService:'2023-11-20',nextService:'2024-11-20',interval:'12',notes:'Pies w domu — uważać!',services:[]},
   ];
   save();
 }
