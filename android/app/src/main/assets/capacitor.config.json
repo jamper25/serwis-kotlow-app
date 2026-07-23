@@ -1,5 +1,10 @@
 {
 	"appId": "pl.instalserwis.serwiskotlow",
 	"appName": "Serwis Kotłów",
-	"webDir": "www"
+	"webDir": "www",
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	}
 }

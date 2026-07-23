@@ -598,6 +598,11 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <!-- ══ SEKCJA: WIZYTY (PLANOWANIE) ══ -->
 <div class="section" id="sec-wizyty">
   <div style="font-size:13px;color:var(--muted);margin-bottom:12px">📞 Klient dzwoni? Zaznacz dzień w kalendarzu albo przewiń siatkę, i kliknij wolną godzinę (8:00–18:00), żeby umówić wizytę.</div>
+
+  <button class="io-btn" onclick="showLocationGroups()" style="margin-bottom:14px;width:100%;background:var(--blue)">
+    <span class="io-icon">📍</span> Grupy klientów wg lokalizacji
+  </button>
+
   <div class="cal-header">
     <button class="cal-nav" onclick="wizCalPrev()">‹</button>
     <div class="cal-month" id="wizCalMonthLabel"></div>
@@ -675,6 +680,16 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div class="sms-card">
+    <div class="sms-title">📍 Grupowanie wg lokalizacji</div>
+    <div class="sms-desc">Klienci dalej niż ten promień od siebie nie trafią do tej samej grupy (przy podpowiedzi w zakładce Wizyty). Wymaga internetu do wyszukania adresów na mapie.</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="filter-btn" id="radiusBtn5" onclick="setGroupingRadius(5)" style="flex:1;text-align:center">5 km</button>
+      <button class="filter-btn active" id="radiusBtn10" onclick="setGroupingRadius(10)" style="flex:1;text-align:center">10 km</button>
+      <button class="filter-btn" id="radiusBtn20" onclick="setGroupingRadius(20)" style="flex:1;text-align:center">20 km</button>
+    </div>
+  </div>
+
+  <div class="sms-card">
     <div class="sms-title">🔐 Backup danych</div>
     <div class="sms-desc">Pobierz lub przywróć kopię swoich danych</div>
     <button class="io-btn" onclick="copyBackupToClipboard()" style="margin-top:8px;width:100%;background:var(--blue)">
@@ -730,7 +745,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-36 (skanowanie: zaznacz fragment zdjęcia przed OCR)
+    Wersja: 2026-07-12-38 (typ klienta Firma+NIP, grupowanie wg lokalizacji)
   </div>
 </div>
 
@@ -740,17 +755,30 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="modal-handle"></div>
   <div class="modal-title" id="modalClientTitle">Nowy klient</div>
 
-  <div class="form-section">Dane osobowe</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">📷 Skanuj dane klienta (imię, adres):</div>
-  <div class="proto-actions" style="margin-bottom:12px">
-    <button class="proto-btn" onclick="document.getElementById('clientScanCamera').click()">📸 Aparat</button>
-    <button class="proto-btn" onclick="document.getElementById('clientScanGallery').click()">🖼 Galeria</button>
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button type="button" id="clientTypeOsobaBtn" class="filter-btn active" onclick="setClientType('osoba')" style="flex:1;text-align:center;padding:10px">👤 Osoba prywatna</button>
+    <button type="button" id="clientTypeFirmaBtn" class="filter-btn" onclick="setClientType('firma')" style="flex:1;text-align:center;padding:10px">🏢 Firma</button>
   </div>
-  <input type="file" id="clientScanCamera" accept="image/*" capture="environment" style="display:none" onchange="scanClientData(this)">
-  <input type="file" id="clientScanGallery" accept="image/*" style="display:none" onchange="scanClientData(this)">
 
+  <div id="firmaFieldsSection" style="display:none">
+    <div class="form-section">Dane firmy</div>
+    <div class="form-group">
+      <label class="form-label">NIP</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="fNip" placeholder="np. 1234567890" style="flex:1">
+        <button type="button" onclick="fetchCompanyByNIP()" style="width:auto;padding:0 16px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-weight:700;cursor:pointer">Pobierz</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Pobiera nazwę i adres z Białej Listy VAT (wymaga internetu)</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nazwa firmy</label>
+      <input class="form-input" id="fCompanyName" placeholder="np. Firma Sp. z o.o.">
+    </div>
+  </div>
+
+  <div class="form-section">Dane osobowe</div>
   <div class="form-group">
-    <label class="form-label">Imię i nazwisko *</label>
+    <label class="form-label" id="fNameLabel">Imię i nazwisko *</label>
     <input class="form-input" id="fName" placeholder="np. Jan Kowalski">
   </div>
   <div class="form-row">
@@ -781,14 +809,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div class="form-section">Kocioł</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">📷 Skanuj tabliczkę / dane kotła:</div>
-  <div class="proto-actions" style="margin-bottom:12px">
-    <button class="proto-btn" onclick="document.getElementById('boilerScanCamera').click()">📸 Aparat</button>
-    <button class="proto-btn" onclick="document.getElementById('boilerScanGallery').click()">🖼 Galeria</button>
-  </div>
-  <input type="file" id="boilerScanCamera" accept="image/*" capture="environment" style="display:none" onchange="scanBoilerData(this)">
-  <input type="file" id="boilerScanGallery" accept="image/*" style="display:none" onchange="scanBoilerData(this)">
-
   <div class="form-group">
     <label class="form-label">Producent / Model</label>
     <input class="form-input" id="fBoilerModel" placeholder="np. Viessmann Vitodens 200-W">
@@ -1139,6 +1159,17 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 </div>
 </div>
 
+<!-- ══ MODAL: GRUPY KLIENTÓW WG LOKALIZACJI ══ -->
+<div class="modal-overlay" id="modalLocationGroups">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📍 Grupy klientów wg lokalizacji</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Klienci pogrupowani wg bliskości adresu (promień z Ustawień). To tylko podpowiedź — sam decydujesz, w jakiej kolejności i którego dnia ich odwiedzić.</div>
+  <div id="locationGroupsList"></div>
+  <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalLocationGroups')">Zamknij</button>
+</div>
+</div>
+
 <!-- ══ MODAL: DODAJ/EDYTUJ CZĘŚĆ MAGAZYNU ══ -->
 <div class="modal-overlay" id="modalPart">
 <div class="modal">
@@ -1194,34 +1225,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Wybierz, który fragment to numer części (albo wpisz ręcznie, jeśli żaden nie pasuje):</div>
   <div id="scanCandidatesList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
   <button class="btn btn-secondary" onclick="closeModal('modalScanResult')">Zamknij, wpiszę ręcznie</button>
-</div>
-</div>
-
-<!-- ══ MODAL: WYBIERZ POLE DLA ZESKANOWANEGO PROTOKOŁU KOTŁA ══ -->
-<div class="modal-overlay" id="modalBoilerScanResult">
-<div class="modal">
-  <div class="modal-handle"></div>
-  <div class="modal-title">📷 Wykryty tekst z protokołu</div>
-  <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Dla każdego wykrytego fragmentu dotknij właściwe pole, do którego go wpisać:</div>
-  <div id="boilerScanCandidatesList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-  <button class="btn btn-secondary" onclick="closeModal('modalBoilerScanResult')">Zamknij</button>
-</div>
-</div>
-
-<!-- ══ MODAL: WYTNIJ FRAGMENT ZDJĘCIA DO SKANOWANIA ══ -->
-<div class="modal-overlay" id="modalCropImage">
-<div class="modal">
-  <div class="modal-handle"></div>
-  <div class="modal-title">✂️ Zaznacz fragment do odczytania</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Przeciągnij palcem po zdjęciu, żeby zaznaczyć tylko interesujący fragment (np. sam numer albo samo imię) - im mniejszy i czystszy wycinek, tym lepszy odczyt. Jeśli nic nie zaznaczysz, zeskanowane zostanie całe zdjęcie.</div>
-  <div id="cropContainer" style="position:relative;width:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border);touch-action:none;background:#000">
-    <img id="cropImg" src="" style="width:100%;display:block;user-select:none;-webkit-user-drag:none">
-    <div id="cropRectOverlay" style="position:absolute;border:2px solid var(--accent);background:rgba(249,115,22,0.18);display:none;pointer-events:none"></div>
-  </div>
-  <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
-    <button class="btn btn-primary" onclick="confirmCropAndScan()">✂️ Wytnij i skanuj</button>
-    <button class="btn btn-secondary" onclick="closeModal('modalCropImage')">Anuluj</button>
-  </div>
 </div>
 </div>
 
@@ -1412,7 +1415,7 @@ function showTab(tab) {
   if (tab === 'kalendarz') renderCalendar();
   if (tab === 'wizyty') { renderWizCalendar(); renderWizGrid(); }
   if (tab === 'pulpit') renderPulpit();
-  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); }
+  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); loadGroupingRadiusUI(); }
   if (tab === 'klienci') renderClients();
   if (tab === 'zlecenia') renderZlecenia();
   if (tab === 'magazyn') renderMagazyn();
@@ -1785,9 +1788,10 @@ function renderClients() {
     const dlText = dl === null ? '' : dl < 0 ? `${Math.abs(dl)} dni po terminie` : dl === 0 ? 'Dzisiaj!' : `Za ${dl} dni`;
     return `<div class="client-card ${st}" onclick="showDetail('${c.id}')">
       <div class="cc-top">
-        <div class="cc-name">${c.name || '—'}</div>
+        <div class="cc-name">${c.clientType === 'firma' ? '🏢 ' : ''}${c.clientType === 'firma' && c.companyName ? c.companyName : (c.name || '—')}</div>
         <div class="cc-badge badge-${st}">${statusLabel(st)}</div>
       </div>
+      ${c.clientType === 'firma' && c.companyName ? `<div class="cc-addr">Kontakt: ${c.name}</div>` : ''}
       <div class="cc-addr">${[c.street, c.city].filter(Boolean).join(', ') || 'Brak adresu'}</div>
       <div class="cc-meta">
         ${c.phone ? `<div class="cc-meta-item">📞 <strong>${c.phone}</strong></div>` : ''}
@@ -1878,10 +1882,11 @@ function openAddClient() {
   editingClientId = null;
   document.getElementById('modalClientTitle').textContent = 'Nowy klient';
   document.getElementById('btnDeleteClient').style.display = 'none';
-  ['fName','fPhone','fPhone2','fStreet','fZip','fCity','fBoilerModel','fBoilerSerial','fFabryka','fFD','fBoilerKatalogowy','fLastService','fNextService','fNotes'].forEach(id => {
+  ['fName','fPhone','fPhone2','fStreet','fZip','fCity','fBoilerModel','fBoilerSerial','fFabryka','fFD','fBoilerKatalogowy','fLastService','fNextService','fNotes','fNip','fCompanyName'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('fInterval').value = '12';
+  setClientType('osoba');
   resetNewClientServiceForm();
   document.getElementById('firstServiceSection').style.display = '';
   openModal('modalClient');
@@ -1908,8 +1913,51 @@ function openEditClient(id) {
   document.getElementById('fNextService').value = c.nextService || '';
   document.getElementById('fInterval').value = c.interval || '12';
   document.getElementById('fNotes').value = c.notes || '';
+  document.getElementById('fNip').value = c.nip || '';
+  document.getElementById('fCompanyName').value = c.companyName || '';
+  setClientType(c.clientType || 'osoba');
   document.getElementById('firstServiceSection').style.display = 'none';
   openModal('modalClient');
+}
+
+let currentClientType = 'osoba';
+function setClientType(type) {
+  currentClientType = type;
+  document.getElementById('clientTypeOsobaBtn').classList.toggle('active', type === 'osoba');
+  document.getElementById('clientTypeFirmaBtn').classList.toggle('active', type === 'firma');
+  document.getElementById('firmaFieldsSection').style.display = type === 'firma' ? '' : 'none';
+  document.getElementById('fNameLabel').textContent = type === 'firma' ? 'Osoba kontaktowa' : 'Imię i nazwisko *';
+}
+
+async function fetchCompanyByNIP() {
+  const nip = document.getElementById('fNip').value.replace(/[^0-9]/g, '');
+  if (nip.length !== 10) { showToast('❌ NIP musi mieć 10 cyfr', true); return; }
+  showToast('🔍 Pobieranie danych z Białej Listy VAT...');
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const resp = await fetch(`https://wl-api.mf.gov.pl/api/search/nip/${nip}?date=${today}`);
+    if (!resp.ok) throw new Error('Błąd serwera (' + resp.status + ')');
+    const data = await resp.json();
+    const subject = data && data.result && data.result.subject;
+    if (!subject) {
+      showToast('❌ Nie znaleziono firmy o tym NIP', true);
+      return;
+    }
+    document.getElementById('fCompanyName').value = subject.name || '';
+    const addr = subject.workingAddress || subject.residenceAddress || '';
+    const match = addr.match(/^(.*?),?\s*(\d{2}-\d{3})\s+(.*)$/);
+    if (match) {
+      document.getElementById('fStreet').value = match[1].trim();
+      document.getElementById('fZip').value = match[2].trim();
+      document.getElementById('fCity').value = match[3].trim();
+    } else if (addr) {
+      document.getElementById('fStreet').value = addr;
+    }
+    showToast('✅ Dane pobrane!');
+  } catch (e) {
+    console.log('NIP fetch error', e);
+    showToast('❌ Błąd pobierania (sprawdź internet) - wpisz ręcznie', true);
+  }
 }
 
 function deleteClientConfirm(id) {
@@ -1940,10 +1988,13 @@ function deleteClientConfirm(id) {
 
 function saveClient() {
   const name = document.getElementById('fName').value.trim();
-  if (!name) { showToast('Wpisz imię i nazwisko!', true); return; }
+  if (!name) { showToast(currentClientType === 'firma' ? 'Wpisz osobę kontaktową!' : 'Wpisz imię i nazwisko!', true); return; }
 
   const data = {
     name, 
+    clientType: currentClientType,
+    companyName: document.getElementById('fCompanyName').value.trim(),
+    nip: document.getElementById('fNip').value.trim(),
     phone: document.getElementById('fPhone').value.trim(),
     phone2: document.getElementById('fPhone2').value.trim(),
     street: document.getElementById('fStreet').value.trim(),
@@ -3673,222 +3724,6 @@ async function scanPartNumber(input) {
   }
 }
 
-// ── Skanowanie protokołu/tabliczki kotła (fabryka, FD, nr seryjny, nr katalogowy) ──
-// Typowe etykiety/nagłówki drukowane na formularzach protokołów serwisowych - odsiewamy je,
-// żeby nie mieszały się z odręcznie wpisanymi danymi
-const PROTOCOL_LABEL_STOPLIST = [
-  'suma', 'wartość', 'wartosc', 'koszt', 'dojazd', 'km', 'rok', 'mies', 'miesiąc', 'miesiac', 'dzień', 'dzien',
-  'fabryka', 'nr seryjny', 'nr katalogowy', 'numer katalogowy', 'nazwa urządzenia', 'nazwa urzadzenia',
-  'nazwisko i imię', 'nazwisko i imie', 'ulica', 'kod pocztowy', 'miejscowość', 'miejscowosc', 'telefon', 'e-mail',
-  'data sprzedaży', 'data sprzedazy', 'data uruchomienia', 'nr dokumentu', 'umowy gwarancji', 'gwarancji dodatkowej',
-  'opis zgłoszenia', 'opis zgloszenia', 'użytkownika', 'uzytkownika', 'objawy', 'opis czynności', 'opis czynnosci',
-  'wymienione części', 'wymienione czesci', 'termin następnego', 'termin nastepnego', 'przeglądu', 'przegladu',
-  'podpis', 'wyrażam zgodę', 'wyrazam zgode', 'kontakt', 'warunków usługi', 'warunkow uslugi',
-  'potwierdzenie wykonania', 'data zgłoszenia', 'data zgloszenia', 'data wykonania', 'urządzenie sprawne',
-  'urzadzenie sprawne', 'urządzenie niesprawne', 'urzadzenie niesprawne', 'protokół stanowi', 'protokol stanowi',
-  'zaświadczenie', 'zaswiadczenie', 'gwarancję', 'gwarancje', 'zakupione', 'materiałów eksploatacyjnych',
-  'materialow eksploatacyjnych', 'baterii', 'uszczelek', 'elektrod', 'okresowa regulacja', 'rodzaj usługi',
-  'rodzaj uslugi', 'pierwsze uruchomienie', 'gwarancja', 'usługa odpłatna', 'usluga odplatna', 'inne',
-  'kontrola stanu', 'anody magnezowej', 'zasobniku', 'szczelności gazowej', 'szczelnosci gazowej',
-  'zabezpieczenia przeciwwypływowego', 'zabezpieczenia przeciwwyplywowego', 'analiza spalin', 'czas zadziałania',
-  'czas zadzialania', 'czujnika ciągu', 'czujnika ciagu', 'kominowego', 'autoryzowany serwis', 'protokół',
-  'protokol', 'usługi serwisowej', 'uslugi serwisowej',
-];
-
-function isProtocolLabelJunk(line) {
-  const lower = line.toLowerCase();
-  if (lower.length < 3) return true;
-  return PROTOCOL_LABEL_STOPLIST.some(label => lower.includes(label));
-}
-
-function extractAllLines(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const filtered = lines.filter(l => !isProtocolLabelJunk(l));
-  return [...new Set(filtered)];
-}
-
-const CLIENT_SCAN_FIELDS = [
-  { id: 'fName', label: 'Imię i nazwisko' },
-  { id: 'fPhone', label: 'Telefon' },
-  { id: 'fStreet', label: 'Ulica' },
-  { id: 'fZip', label: 'Kod poczt.' },
-  { id: 'fCity', label: 'Miasto' },
-];
-
-const BOILER_SCAN_FIELDS = [
-  { id: 'fBoilerModel', label: 'Model kotła' },
-  { id: 'fFabryka', label: 'Fabryka' },
-  { id: 'fFD', label: 'FD' },
-  { id: 'fBoilerSerial', label: 'Nr seryjny' },
-  { id: 'fBoilerKatalogowy', label: 'Nr katalogowy' },
-  { id: 'fLastService', label: 'Data wykonania' },
-  { id: 'fNextService', label: 'Nast. przegląd' },
-];
-
-function showProtocolScanCandidates(candidates, fields) {
-  const el = document.getElementById('boilerScanCandidatesList');
-  if (!candidates.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:13px">Nie znaleziono tekstu. Wpisz dane ręcznie.</div>';
-  } else {
-    el.innerHTML = candidates.map(c => `
-      <div style="background:var(--surface2);border-radius:10px;padding:10px">
-        <div style="font-family:var(--mono);font-weight:700;margin-bottom:8px;word-break:break-word">${c}</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${fields.map(f => `<button class="io-btn" style="flex:1;min-width:80px;padding:6px 8px;font-size:11px" onclick="assignBoilerField('${f.id}','${c.replace(/'/g, "\\'")}')">→ ${f.label}</button>`).join('')}
-        </div>
-      </div>
-    `).join('');
-  }
-  openModal('modalBoilerScanResult');
-}
-
-function tryParseDateToISO(str) {
-  const digits = str.replace(/\D/g, '');
-  if (digits.length !== 8) return null;
-  let y, m, d;
-  if (digits.startsWith('19') || digits.startsWith('20')) {
-    y = digits.slice(0, 4); m = digits.slice(4, 6); d = digits.slice(6, 8);
-  } else {
-    d = digits.slice(0, 2); m = digits.slice(2, 4); y = digits.slice(4, 8);
-  }
-  const mi = parseInt(m, 10), di = parseInt(d, 10);
-  if (mi < 1 || mi > 12 || di < 1 || di > 31) return null;
-  return `${y}-${m}-${d}`;
-}
-
-function assignBoilerField(fieldId, value) {
-  if (fieldId === 'fLastService' || fieldId === 'fNextService') {
-    const iso = tryParseDateToISO(value);
-    if (iso) {
-      document.getElementById(fieldId).value = iso;
-      showToast('✅ Wpisano datę!');
-    } else {
-      showToast('⚠️ Nie rozpoznano formatu daty - wpisz ręcznie', true);
-    }
-    return;
-  }
-  document.getElementById(fieldId).value = value;
-  showToast('✅ Wpisano!');
-}
-
-let currentScanFields = null;
-let currentCropDataUrl = null;
-
-function scanClientData(input) {
-  currentScanFields = CLIENT_SCAN_FIELDS;
-  loadImageForCrop(input);
-}
-
-function scanBoilerData(input) {
-  currentScanFields = BOILER_SCAN_FIELDS;
-  loadImageForCrop(input);
-}
-
-function loadImageForCrop(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    currentCropDataUrl = e.target.result;
-    openCropModal(currentCropDataUrl);
-  };
-  reader.readAsDataURL(file);
-  input.value = '';
-}
-
-function openCropModal(dataUrl) {
-  const img = document.getElementById('cropImg');
-  const overlay = document.getElementById('cropRectOverlay');
-  overlay.style.display = 'none';
-  overlay.style.width = '0px';
-  overlay.style.height = '0px';
-  img.src = dataUrl;
-  openModal('modalCropImage');
-}
-
-let cropDragging = false, cropStartX = 0, cropStartY = 0;
-
-function initCropHandlers() {
-  const container = document.getElementById('cropContainer');
-  if (!container) return;
-  container.addEventListener('pointerdown', e => {
-    cropDragging = true;
-    const rect = container.getBoundingClientRect();
-    cropStartX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    cropStartY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-    const overlay = document.getElementById('cropRectOverlay');
-    overlay.style.display = 'block';
-    overlay.style.left = cropStartX + 'px';
-    overlay.style.top = cropStartY + 'px';
-    overlay.style.width = '0px';
-    overlay.style.height = '0px';
-  });
-  container.addEventListener('pointermove', e => {
-    if (!cropDragging) return;
-    e.preventDefault();
-    const rect = container.getBoundingClientRect();
-    const curX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const curY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-    const overlay = document.getElementById('cropRectOverlay');
-    overlay.style.left = Math.min(cropStartX, curX) + 'px';
-    overlay.style.top = Math.min(cropStartY, curY) + 'px';
-    overlay.style.width = Math.abs(curX - cropStartX) + 'px';
-    overlay.style.height = Math.abs(curY - cropStartY) + 'px';
-  });
-  container.addEventListener('pointerup', () => { cropDragging = false; });
-  container.addEventListener('pointercancel', () => { cropDragging = false; });
-}
-
-function confirmCropAndScan() {
-  const img = document.getElementById('cropImg');
-  const container = document.getElementById('cropContainer');
-  const overlay = document.getElementById('cropRectOverlay');
-  const containerRect = container.getBoundingClientRect();
-  const scaleX = img.naturalWidth / containerRect.width;
-  const scaleY = img.naturalHeight / containerRect.height;
-
-  let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
-  const cropW = parseFloat(overlay.style.width) || 0;
-  const cropH = parseFloat(overlay.style.height) || 0;
-  if (overlay.style.display === 'block' && cropW > 10 && cropH > 10) {
-    sx = (parseFloat(overlay.style.left) || 0) * scaleX;
-    sy = (parseFloat(overlay.style.top) || 0) * scaleY;
-    sw = cropW * scaleX;
-    sh = cropH * scaleY;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = sw;
-  canvas.height = sh;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-  const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-
-  closeModal('modalCropImage');
-  runOCROnDataUrl(croppedDataUrl, currentScanFields);
-}
-
-async function runOCROnDataUrl(dataUrl, fields) {
-  const plugins = window.Capacitor && window.Capacitor.Plugins;
-  if (!plugins || !plugins.Filesystem || !plugins.TextRecognition) {
-    showToast('OCR działa tylko w zainstalowanej aplikacji', true);
-    return;
-  }
-  const { Filesystem, TextRecognition } = plugins;
-  showToast('🔍 Skanowanie...');
-  try {
-    const base64 = dataUrl.split(',')[1];
-    const fileName = `scan-${Date.now()}.jpg`;
-    await Filesystem.writeFile({ path: fileName, data: base64, directory: 'CACHE' });
-    const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
-    const result = await TextRecognition.processImage({ path: uri, script: 'LATIN' });
-    const candidates = extractAllLines(result.text || '');
-    showProtocolScanCandidates(candidates, fields);
-  } catch (e) {
-    console.log('OCR error', e);
-    showToast('Błąd skanowania: ' + (e.message || ''), true);
-  }
-}
 
 // ══════════════════════════════════════════════════
 // HISTORIA ZLECEŃ - TRYBY: MIESIĄC / TYDZIEŃ / DZIEŃ
@@ -3896,6 +3731,104 @@ async function runOCROnDataUrl(dataUrl, fields) {
 let zlCalYear, zlCalMonth, zlSelectedDay, zlMode = 'miesiac', zlWeekStart;
 
 const ZL_TYPE_COLORS = { konserwacja: 'var(--green)', awaria: 'var(--red)', uruchomienie: 'var(--blue)' };
+
+// ══════════════════════════════════════════════════
+// GRUPOWANIE KLIENTÓW WG LOKALIZACJI
+// ══════════════════════════════════════════════════
+function setGroupingRadius(km) {
+  localStorage.setItem('grouping_radius_km', String(km));
+  ['5','10','20'].forEach(v => document.getElementById('radiusBtn' + v).classList.toggle('active', parseInt(v) === km));
+  showToast(`Promień grupowania: ${km} km`);
+}
+
+function loadGroupingRadiusUI() {
+  const km = parseInt(localStorage.getItem('grouping_radius_km') || '10');
+  ['5','10','20'].forEach(v => {
+    const btn = document.getElementById('radiusBtn' + v);
+    if (btn) btn.classList.toggle('active', parseInt(v) === km);
+  });
+}
+
+async function geocodeAddress(street, city) {
+  const query = encodeURIComponent(`${street}, ${city}, Polska`);
+  try {
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=pl`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch (e) {
+    console.log('Geocode error', e);
+  }
+  return null;
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function computeLocationGroups(onProgress) {
+  const radiusKm = parseInt(localStorage.getItem('grouping_radius_km') || '10');
+  const withAddress = clients.filter(c => c.street && c.city);
+  const toGeocode = withAddress.filter(c => !c.lat || !c.lng);
+
+  for (let i = 0; i < toGeocode.length; i++) {
+    const c = toGeocode[i];
+    if (onProgress) onProgress(i + 1, toGeocode.length);
+    const coords = await geocodeAddress(c.street, c.city);
+    if (coords) { c.lat = coords.lat; c.lng = coords.lng; }
+    await new Promise(r => setTimeout(r, 1100)); // uprzejme opóźnienie dla darmowego serwisu Nominatim
+  }
+  if (toGeocode.length) save();
+
+  const geocoded = withAddress.filter(c => c.lat && c.lng);
+  const groups = [];
+  const used = new Set();
+  geocoded.forEach(c => {
+    if (used.has(c.id)) return;
+    const group = [c];
+    used.add(c.id);
+    geocoded.forEach(other => {
+      if (used.has(other.id)) return;
+      if (haversineKm(c.lat, c.lng, other.lat, other.lng) <= radiusKm) {
+        group.push(other);
+        used.add(other.id);
+      }
+    });
+    groups.push(group);
+  });
+  groups.sort((a, b) => b.length - a.length);
+  return { groups, skipped: withAddress.length - geocoded.length };
+}
+
+async function showLocationGroups() {
+  openModal('modalLocationGroups');
+  const listEl = document.getElementById('locationGroupsList');
+  listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">🔍 Wyszukiwanie adresów na mapie...</div>';
+
+  const { groups, skipped } = await computeLocationGroups((done, total) => {
+    listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted)">🔍 Wyszukiwanie adresów (${done}/${total})...<br><span style="font-size:11px">To robimy tylko raz - później jest błyskawicznie</span></div>`;
+  });
+
+  if (!groups.length) {
+    listEl.innerHTML = '<div class="empty"><div class="empty-icon">📍</div><div class="empty-title">Brak klientów z adresem do zgrupowania</div></div>';
+    return;
+  }
+
+  listEl.innerHTML = (skipped ? `<div style="font-size:11px;color:var(--muted);margin-bottom:10px">⚠️ Nie udało się znaleźć ${skipped} adresów na mapie - sprawdź czy są wpisane poprawnie.</div>` : '') +
+    groups.map((g, i) => `
+      <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:700;margin-bottom:6px">Grupa ${i + 1} (${g.length} ${g.length === 1 ? 'klient' : 'klientów'})</div>
+        ${g.map(c => `<div style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" onclick="closeModal('modalLocationGroups');showDetail('${c.id}')">
+          <div style="font-weight:600">${c.clientType === 'firma' && c.companyName ? c.companyName : c.name}</div>
+          <div style="font-size:12px;color:var(--muted)">${c.street}, ${c.city}</div>
+        </div>`).join('')}
+      </div>
+    `).join('');
+}
 
 function initZlecenia() {
   const now = new Date();
@@ -4276,7 +4209,6 @@ initZlecenia();
 initDragHandlers();
 initBackButton();
 initAppLock();
-initCropHandlers();
 
 // Demo dane jeśli baza pusta
 if (!clients.length) {
