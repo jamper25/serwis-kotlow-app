@@ -730,7 +730,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-35 (skanowanie: wybór Aparat/Galeria)
+    Wersja: 2026-07-12-36 (skanowanie: zaznacz fragment zdjęcia przed OCR)
   </div>
 </div>
 
@@ -1205,6 +1205,23 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Dla każdego wykrytego fragmentu dotknij właściwe pole, do którego go wpisać:</div>
   <div id="boilerScanCandidatesList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
   <button class="btn btn-secondary" onclick="closeModal('modalBoilerScanResult')">Zamknij</button>
+</div>
+</div>
+
+<!-- ══ MODAL: WYTNIJ FRAGMENT ZDJĘCIA DO SKANOWANIA ══ -->
+<div class="modal-overlay" id="modalCropImage">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">✂️ Zaznacz fragment do odczytania</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Przeciągnij palcem po zdjęciu, żeby zaznaczyć tylko interesujący fragment (np. sam numer albo samo imię) - im mniejszy i czystszy wycinek, tym lepszy odczyt. Jeśli nic nie zaznaczysz, zeskanowane zostanie całe zdjęcie.</div>
+  <div id="cropContainer" style="position:relative;width:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border);touch-action:none;background:#000">
+    <img id="cropImg" src="" style="width:100%;display:block;user-select:none;-webkit-user-drag:none">
+    <div id="cropRectOverlay" style="position:absolute;border:2px solid var(--accent);background:rgba(249,115,22,0.18);display:none;pointer-events:none"></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+    <button class="btn btn-primary" onclick="confirmCropAndScan()">✂️ Wytnij i skanuj</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalCropImage')">Anuluj</button>
+  </div>
 </div>
 </div>
 
@@ -3754,47 +3771,123 @@ function assignBoilerField(fieldId, value) {
   showToast('✅ Wpisano!');
 }
 
-async function runProtocolOCR(input, fileTag) {
+let currentScanFields = null;
+let currentCropDataUrl = null;
+
+function scanClientData(input) {
+  currentScanFields = CLIENT_SCAN_FIELDS;
+  loadImageForCrop(input);
+}
+
+function scanBoilerData(input) {
+  currentScanFields = BOILER_SCAN_FIELDS;
+  loadImageForCrop(input);
+}
+
+function loadImageForCrop(input) {
   const file = input.files[0];
-  if (!file) return null;
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentCropDataUrl = e.target.result;
+    openCropModal(currentCropDataUrl);
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function openCropModal(dataUrl) {
+  const img = document.getElementById('cropImg');
+  const overlay = document.getElementById('cropRectOverlay');
+  overlay.style.display = 'none';
+  overlay.style.width = '0px';
+  overlay.style.height = '0px';
+  img.src = dataUrl;
+  openModal('modalCropImage');
+}
+
+let cropDragging = false, cropStartX = 0, cropStartY = 0;
+
+function initCropHandlers() {
+  const container = document.getElementById('cropContainer');
+  if (!container) return;
+  container.addEventListener('pointerdown', e => {
+    cropDragging = true;
+    const rect = container.getBoundingClientRect();
+    cropStartX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    cropStartY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+    const overlay = document.getElementById('cropRectOverlay');
+    overlay.style.display = 'block';
+    overlay.style.left = cropStartX + 'px';
+    overlay.style.top = cropStartY + 'px';
+    overlay.style.width = '0px';
+    overlay.style.height = '0px';
+  });
+  container.addEventListener('pointermove', e => {
+    if (!cropDragging) return;
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const curX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const curY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+    const overlay = document.getElementById('cropRectOverlay');
+    overlay.style.left = Math.min(cropStartX, curX) + 'px';
+    overlay.style.top = Math.min(cropStartY, curY) + 'px';
+    overlay.style.width = Math.abs(curX - cropStartX) + 'px';
+    overlay.style.height = Math.abs(curY - cropStartY) + 'px';
+  });
+  container.addEventListener('pointerup', () => { cropDragging = false; });
+  container.addEventListener('pointercancel', () => { cropDragging = false; });
+}
+
+function confirmCropAndScan() {
+  const img = document.getElementById('cropImg');
+  const container = document.getElementById('cropContainer');
+  const overlay = document.getElementById('cropRectOverlay');
+  const containerRect = container.getBoundingClientRect();
+  const scaleX = img.naturalWidth / containerRect.width;
+  const scaleY = img.naturalHeight / containerRect.height;
+
+  let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+  const cropW = parseFloat(overlay.style.width) || 0;
+  const cropH = parseFloat(overlay.style.height) || 0;
+  if (overlay.style.display === 'block' && cropW > 10 && cropH > 10) {
+    sx = (parseFloat(overlay.style.left) || 0) * scaleX;
+    sy = (parseFloat(overlay.style.top) || 0) * scaleY;
+    sw = cropW * scaleX;
+    sh = cropH * scaleY;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+  closeModal('modalCropImage');
+  runOCROnDataUrl(croppedDataUrl, currentScanFields);
+}
+
+async function runOCROnDataUrl(dataUrl, fields) {
   const plugins = window.Capacitor && window.Capacitor.Plugins;
   if (!plugins || !plugins.Filesystem || !plugins.TextRecognition) {
     showToast('OCR działa tylko w zainstalowanej aplikacji', true);
-    input.value = '';
-    return null;
+    return;
   }
   const { Filesystem, TextRecognition } = plugins;
   showToast('🔍 Skanowanie...');
   try {
-    const dataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
     const base64 = dataUrl.split(',')[1];
-    const fileName = `${fileTag}-${Date.now()}.jpg`;
+    const fileName = `scan-${Date.now()}.jpg`;
     await Filesystem.writeFile({ path: fileName, data: base64, directory: 'CACHE' });
     const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
     const result = await TextRecognition.processImage({ path: uri, script: 'LATIN' });
-    return extractAllLines(result.text || '');
+    const candidates = extractAllLines(result.text || '');
+    showProtocolScanCandidates(candidates, fields);
   } catch (e) {
     console.log('OCR error', e);
     showToast('Błąd skanowania: ' + (e.message || ''), true);
-    return null;
-  } finally {
-    input.value = '';
   }
-}
-
-async function scanClientData(input) {
-  const candidates = await runProtocolOCR(input, 'client-scan');
-  if (candidates) showProtocolScanCandidates(candidates, CLIENT_SCAN_FIELDS);
-}
-
-async function scanBoilerData(input) {
-  const candidates = await runProtocolOCR(input, 'boiler-scan');
-  if (candidates) showProtocolScanCandidates(candidates, BOILER_SCAN_FIELDS);
 }
 
 // ══════════════════════════════════════════════════
@@ -4183,6 +4276,7 @@ initZlecenia();
 initDragHandlers();
 initBackButton();
 initAppLock();
+initCropHandlers();
 
 // Demo dane jeśli baza pusta
 if (!clients.length) {
