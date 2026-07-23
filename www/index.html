@@ -730,7 +730,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-32 (OCR rozpoznaje też daty - wykonania i następnego przeglądu)
+    Wersja: 2026-07-12-35 (skanowanie: wybór Aparat/Galeria)
   </div>
 </div>
 
@@ -740,12 +740,15 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="modal-handle"></div>
   <div class="modal-title" id="modalClientTitle">Nowy klient</div>
 
-  <button class="io-btn" onclick="document.getElementById('boilerScanCamera').click()" style="background:var(--blue);margin-bottom:16px">
-    <span class="io-icon">📷</span> Skanuj protokół serwisowy (OCR)
-  </button>
-  <input type="file" id="boilerScanCamera" accept="image/*" capture="environment" style="display:none" onchange="scanBoilerData(this)">
-
   <div class="form-section">Dane osobowe</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">📷 Skanuj dane klienta (imię, adres):</div>
+  <div class="proto-actions" style="margin-bottom:12px">
+    <button class="proto-btn" onclick="document.getElementById('clientScanCamera').click()">📸 Aparat</button>
+    <button class="proto-btn" onclick="document.getElementById('clientScanGallery').click()">🖼 Galeria</button>
+  </div>
+  <input type="file" id="clientScanCamera" accept="image/*" capture="environment" style="display:none" onchange="scanClientData(this)">
+  <input type="file" id="clientScanGallery" accept="image/*" style="display:none" onchange="scanClientData(this)">
+
   <div class="form-group">
     <label class="form-label">Imię i nazwisko *</label>
     <input class="form-input" id="fName" placeholder="np. Jan Kowalski">
@@ -778,6 +781,14 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div class="form-section">Kocioł</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">📷 Skanuj tabliczkę / dane kotła:</div>
+  <div class="proto-actions" style="margin-bottom:12px">
+    <button class="proto-btn" onclick="document.getElementById('boilerScanCamera').click()">📸 Aparat</button>
+    <button class="proto-btn" onclick="document.getElementById('boilerScanGallery').click()">🖼 Galeria</button>
+  </div>
+  <input type="file" id="boilerScanCamera" accept="image/*" capture="environment" style="display:none" onchange="scanBoilerData(this)">
+  <input type="file" id="boilerScanGallery" accept="image/*" style="display:none" onchange="scanBoilerData(this)">
+
   <div class="form-group">
     <label class="form-label">Producent / Model</label>
     <input class="form-input" id="fBoilerModel" placeholder="np. Viessmann Vitodens 200-W">
@@ -1152,8 +1163,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label class="form-label">Ilość na stanie</label>
-      <input class="form-input" id="pQty" type="number" placeholder="0">
+      <label class="form-label" id="pQtyLabel">Ilość początkowa</label>
+      <input class="form-input" id="pQty" type="number" placeholder="0" oninput="updateQtyPreview()">
+      <div id="pQtyPreview" style="font-size:12px;color:var(--muted);margin-top:4px;display:none"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Minimalny stan (alert)</label>
@@ -3451,7 +3463,9 @@ function openAddPart() {
   document.getElementById('partModalTitle').textContent = '📦 Nowa część';
   document.getElementById('pNumber').value = '';
   document.getElementById('pName').value = '';
+  document.getElementById('pQtyLabel').textContent = 'Ilość początkowa';
   document.getElementById('pQty').value = '';
+  document.getElementById('pQtyPreview').style.display = 'none';
   document.getElementById('pMinStock').value = '1';
   document.getElementById('partDeleteBtn').style.display = 'none';
   document.getElementById('partHistorySection').style.display = 'none';
@@ -3465,12 +3479,27 @@ function openEditPart(id) {
   document.getElementById('partModalTitle').textContent = '📦 ' + p.number;
   document.getElementById('pNumber').value = p.number;
   document.getElementById('pName').value = p.name || '';
-  document.getElementById('pQty').value = p.qty;
+  document.getElementById('pQtyLabel').textContent = `Ile dodać? (aktualny stan: ${p.qty} szt.)`;
+  document.getElementById('pQty').value = '';
+  document.getElementById('pQty').placeholder = 'np. 5 (albo -2 żeby odjąć)';
+  updateQtyPreview();
   document.getElementById('pMinStock').value = p.minStock || 1;
   document.getElementById('partDeleteBtn').style.display = '';
   renderPartHistory(id);
   document.getElementById('partHistorySection').style.display = '';
   openModal('modalPart');
+}
+
+function updateQtyPreview() {
+  const previewEl = document.getElementById('pQtyPreview');
+  if (!editingPartId) { previewEl.style.display = 'none'; return; }
+  const p = magazyn.find(x => x.id === editingPartId);
+  if (!p) { previewEl.style.display = 'none'; return; }
+  const delta = parseInt(document.getElementById('pQty').value) || 0;
+  const newQty = p.qty + delta;
+  previewEl.style.display = '';
+  previewEl.textContent = `📦 Stan po zapisaniu: ${newQty} szt.`;
+  previewEl.style.color = newQty < 0 ? 'var(--red)' : 'var(--green)';
 }
 
 function renderPartHistory(partId) {
@@ -3491,20 +3520,22 @@ function renderPartHistory(partId) {
 function savePart() {
   const number = document.getElementById('pNumber').value.trim();
   const name = document.getElementById('pName').value.trim();
-  const qty = parseInt(document.getElementById('pQty').value) || 0;
   const minStock = parseInt(document.getElementById('pMinStock').value) || 0;
   if (!number) { showToast('❌ Podaj numer części!', true); return; }
 
   if (editingPartId) {
     const p = magazyn.find(x => x.id === editingPartId);
+    const delta = parseInt(document.getElementById('pQty').value) || 0;
     const oldQty = p.qty;
-    p.number = number; p.name = name; p.qty = qty; p.minStock = minStock;
-    if (qty !== oldQty) {
-      magazynHistoria.push({ id: genId(), date: new Date().toISOString().split('T')[0], partId: p.id, type: qty > oldQty ? 'przyjecie' : 'wydanie', qty: Math.abs(qty - oldQty), note: 'Ręczna korekta stanu' });
+    const newQty = oldQty + delta;
+    p.number = number; p.name = name; p.qty = newQty; p.minStock = minStock;
+    if (delta !== 0) {
+      magazynHistoria.push({ id: genId(), date: new Date().toISOString().split('T')[0], partId: p.id, type: delta > 0 ? 'przyjecie' : 'wydanie', qty: Math.abs(delta), note: delta > 0 ? 'Przyjęcie towaru' : 'Ręczna korekta stanu' });
       saveMagazynHistoria();
     }
-    showToast('✅ Część zaktualizowana!');
+    showToast(`✅ Zaktualizowano! Stan: ${newQty} szt.`);
   } else {
+    const qty = parseInt(document.getElementById('pQty').value) || 0;
     const newPart = { id: genId(), number, name, qty, minStock };
     magazyn.push(newPart);
     if (qty > 0) {
@@ -3626,30 +3657,62 @@ async function scanPartNumber(input) {
 }
 
 // ── Skanowanie protokołu/tabliczki kotła (fabryka, FD, nr seryjny, nr katalogowy) ──
-function extractAllLines(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  return [...new Set(lines)];
+// Typowe etykiety/nagłówki drukowane na formularzach protokołów serwisowych - odsiewamy je,
+// żeby nie mieszały się z odręcznie wpisanymi danymi
+const PROTOCOL_LABEL_STOPLIST = [
+  'suma', 'wartość', 'wartosc', 'koszt', 'dojazd', 'km', 'rok', 'mies', 'miesiąc', 'miesiac', 'dzień', 'dzien',
+  'fabryka', 'nr seryjny', 'nr katalogowy', 'numer katalogowy', 'nazwa urządzenia', 'nazwa urzadzenia',
+  'nazwisko i imię', 'nazwisko i imie', 'ulica', 'kod pocztowy', 'miejscowość', 'miejscowosc', 'telefon', 'e-mail',
+  'data sprzedaży', 'data sprzedazy', 'data uruchomienia', 'nr dokumentu', 'umowy gwarancji', 'gwarancji dodatkowej',
+  'opis zgłoszenia', 'opis zgloszenia', 'użytkownika', 'uzytkownika', 'objawy', 'opis czynności', 'opis czynnosci',
+  'wymienione części', 'wymienione czesci', 'termin następnego', 'termin nastepnego', 'przeglądu', 'przegladu',
+  'podpis', 'wyrażam zgodę', 'wyrazam zgode', 'kontakt', 'warunków usługi', 'warunkow uslugi',
+  'potwierdzenie wykonania', 'data zgłoszenia', 'data zgloszenia', 'data wykonania', 'urządzenie sprawne',
+  'urzadzenie sprawne', 'urządzenie niesprawne', 'urzadzenie niesprawne', 'protokół stanowi', 'protokol stanowi',
+  'zaświadczenie', 'zaswiadczenie', 'gwarancję', 'gwarancje', 'zakupione', 'materiałów eksploatacyjnych',
+  'materialow eksploatacyjnych', 'baterii', 'uszczelek', 'elektrod', 'okresowa regulacja', 'rodzaj usługi',
+  'rodzaj uslugi', 'pierwsze uruchomienie', 'gwarancja', 'usługa odpłatna', 'usluga odplatna', 'inne',
+  'kontrola stanu', 'anody magnezowej', 'zasobniku', 'szczelności gazowej', 'szczelnosci gazowej',
+  'zabezpieczenia przeciwwypływowego', 'zabezpieczenia przeciwwyplywowego', 'analiza spalin', 'czas zadziałania',
+  'czas zadzialania', 'czujnika ciągu', 'czujnika ciagu', 'kominowego', 'autoryzowany serwis', 'protokół',
+  'protokol', 'usługi serwisowej', 'uslugi serwisowej',
+];
+
+function isProtocolLabelJunk(line) {
+  const lower = line.toLowerCase();
+  if (lower.length < 3) return true;
+  return PROTOCOL_LABEL_STOPLIST.some(label => lower.includes(label));
 }
 
-function showBoilerScanCandidates(candidates) {
+function extractAllLines(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const filtered = lines.filter(l => !isProtocolLabelJunk(l));
+  return [...new Set(filtered)];
+}
+
+const CLIENT_SCAN_FIELDS = [
+  { id: 'fName', label: 'Imię i nazwisko' },
+  { id: 'fPhone', label: 'Telefon' },
+  { id: 'fStreet', label: 'Ulica' },
+  { id: 'fZip', label: 'Kod poczt.' },
+  { id: 'fCity', label: 'Miasto' },
+];
+
+const BOILER_SCAN_FIELDS = [
+  { id: 'fBoilerModel', label: 'Model kotła' },
+  { id: 'fFabryka', label: 'Fabryka' },
+  { id: 'fFD', label: 'FD' },
+  { id: 'fBoilerSerial', label: 'Nr seryjny' },
+  { id: 'fBoilerKatalogowy', label: 'Nr katalogowy' },
+  { id: 'fLastService', label: 'Data wykonania' },
+  { id: 'fNextService', label: 'Nast. przegląd' },
+];
+
+function showProtocolScanCandidates(candidates, fields) {
   const el = document.getElementById('boilerScanCandidatesList');
   if (!candidates.length) {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px">Nie znaleziono tekstu. Wpisz dane ręcznie.</div>';
   } else {
-    const fields = [
-      { id: 'fName', label: 'Imię i nazwisko' },
-      { id: 'fPhone', label: 'Telefon' },
-      { id: 'fStreet', label: 'Ulica' },
-      { id: 'fZip', label: 'Kod poczt.' },
-      { id: 'fCity', label: 'Miasto' },
-      { id: 'fBoilerModel', label: 'Model kotła' },
-      { id: 'fFabryka', label: 'Fabryka' },
-      { id: 'fFD', label: 'FD' },
-      { id: 'fBoilerSerial', label: 'Nr seryjny' },
-      { id: 'fBoilerKatalogowy', label: 'Nr katalogowy' },
-      { id: 'fLastService', label: 'Data wykonania' },
-      { id: 'fNextService', label: 'Nast. przegląd' },
-    ];
     el.innerHTML = candidates.map(c => `
       <div style="background:var(--surface2);border-radius:10px;padding:10px">
         <div style="font-family:var(--mono);font-weight:700;margin-bottom:8px;word-break:break-word">${c}</div>
@@ -3691,17 +3754,17 @@ function assignBoilerField(fieldId, value) {
   showToast('✅ Wpisano!');
 }
 
-async function scanBoilerData(input) {
+async function runProtocolOCR(input, fileTag) {
   const file = input.files[0];
-  if (!file) return;
+  if (!file) return null;
   const plugins = window.Capacitor && window.Capacitor.Plugins;
   if (!plugins || !plugins.Filesystem || !plugins.TextRecognition) {
     showToast('OCR działa tylko w zainstalowanej aplikacji', true);
     input.value = '';
-    return;
+    return null;
   }
   const { Filesystem, TextRecognition } = plugins;
-  showToast('🔍 Skanowanie protokołu...');
+  showToast('🔍 Skanowanie...');
   try {
     const dataUrl = await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -3710,19 +3773,32 @@ async function scanBoilerData(input) {
       reader.readAsDataURL(file);
     });
     const base64 = dataUrl.split(',')[1];
-    const fileName = `boiler-scan-${Date.now()}.jpg`;
+    const fileName = `${fileTag}-${Date.now()}.jpg`;
     await Filesystem.writeFile({ path: fileName, data: base64, directory: 'CACHE' });
     const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
     const result = await TextRecognition.processImage({ path: uri, script: 'LATIN' });
-    const candidates = extractAllLines(result.text || '');
-    showBoilerScanCandidates(candidates);
+    return extractAllLines(result.text || '');
   } catch (e) {
     console.log('OCR error', e);
     showToast('Błąd skanowania: ' + (e.message || ''), true);
+    return null;
   } finally {
     input.value = '';
   }
 }
+
+async function scanClientData(input) {
+  const candidates = await runProtocolOCR(input, 'client-scan');
+  if (candidates) showProtocolScanCandidates(candidates, CLIENT_SCAN_FIELDS);
+}
+
+async function scanBoilerData(input) {
+  const candidates = await runProtocolOCR(input, 'boiler-scan');
+  if (candidates) showProtocolScanCandidates(candidates, BOILER_SCAN_FIELDS);
+}
+
+// ══════════════════════════════════════════════════
+// HISTORIA ZLECEŃ - TRYBY: MIESIĄC / TYDZIEŃ / DZIEŃ
 // ══════════════════════════════════════════════════
 let zlCalYear, zlCalMonth, zlSelectedDay, zlMode = 'miesiac', zlWeekStart;
 
