@@ -340,6 +340,17 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 .proto-btn.download{border-color:var(--blue)44;color:var(--blue);background:var(--blue)11}
 .proto-btn.remove{border-color:var(--red)44;color:var(--red);background:var(--red)11}
 
+/* Dyktowanie głosowe */
+.voice-field-row{display:flex;gap:6px;align-items:flex-start}
+.voice-field-row .form-input,.voice-field-row .form-textarea{flex:1}
+.voice-btn{
+  flex-shrink:0;width:44px;height:44px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+.voice-btn.listening{background:var(--red);color:#fff;border-color:var(--red);animation:voicePulse 1s infinite}
+@keyframes voicePulse{0%,100%{opacity:1}50%{opacity:.55}}
+
 /* Historia z protokołem */
 .hi-proto{
   margin-top:8px;padding:8px 10px;
@@ -492,6 +503,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 <div class="section active" id="sec-pulpit">
   <div id="pulpitGreeting" style="font-size:22px;font-weight:800;margin-bottom:4px"></div>
   <div style="font-size:13px;color:var(--muted);margin-bottom:18px" id="pulpitDate"></div>
+
+  <div id="pulpitBackupReminder"></div>
 
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px">
     <div class="zl-sum-card" style="cursor:pointer" onclick="goToOverdueClients()">
@@ -745,7 +758,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-38 (typ klienta Firma+NIP, grupowanie wg lokalizacji)
+    Wersja: 2026-07-12-41 (cyfrowy protokół serwisowy z podpisem klienta)
   </div>
 </div>
 
@@ -779,7 +792,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="form-section">Dane osobowe</div>
   <div class="form-group">
     <label class="form-label" id="fNameLabel">Imię i nazwisko *</label>
-    <input class="form-input" id="fName" placeholder="np. Jan Kowalski">
+    <div class="voice-field-row">
+      <input class="form-input" id="fName" placeholder="np. Jan Kowalski">
+      <button type="button" class="voice-btn" onclick="startVoiceInput('fName', this)">🎙️</button>
+    </div>
   </div>
   <div class="form-row">
     <div class="form-group">
@@ -795,7 +811,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="form-section">Adres</div>
   <div class="form-group">
     <label class="form-label">Ulica i numer</label>
-    <input class="form-input" id="fStreet" placeholder="np. Kwiatowa 5/12">
+    <div class="voice-field-row">
+      <input class="form-input" id="fStreet" placeholder="np. Kwiatowa 5/12">
+      <button type="button" class="voice-btn" onclick="startVoiceInput('fStreet', this)">🎙️</button>
+    </div>
   </div>
   <div class="form-row">
     <div class="form-group">
@@ -804,14 +823,20 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     </div>
     <div class="form-group">
       <label class="form-label">Miasto</label>
-      <input class="form-input" id="fCity" placeholder="np. Warszawa">
+      <div class="voice-field-row">
+        <input class="form-input" id="fCity" placeholder="np. Warszawa">
+        <button type="button" class="voice-btn" onclick="startVoiceInput('fCity', this)">🎙️</button>
+      </div>
     </div>
   </div>
 
   <div class="form-section">Kocioł</div>
   <div class="form-group">
     <label class="form-label">Producent / Model</label>
-    <input class="form-input" id="fBoilerModel" placeholder="np. Viessmann Vitodens 200-W">
+    <div class="voice-field-row">
+      <input class="form-input" id="fBoilerModel" placeholder="np. Viessmann Vitodens 200-W">
+      <button type="button" class="voice-btn" onclick="startVoiceInput('fBoilerModel', this)">🎙️</button>
+    </div>
   </div>
 
   <div class="form-row">
@@ -906,7 +931,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div class="form-section">Notatki</div>
   <div class="form-group">
     <label class="form-label">Uwagi</label>
-    <textarea class="form-textarea" id="fNotes" placeholder="Kod do domofonu, specjalne uwagi, dojazd..."></textarea>
+    <div class="voice-field-row">
+      <textarea class="form-textarea" id="fNotes" placeholder="Kod do domofonu, specjalne uwagi, dojazd..."></textarea>
+      <button type="button" class="voice-btn" onclick="startVoiceInput('fNotes', this)">🎙️</button>
+    </div>
   </div>
 
   <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px">
@@ -945,8 +973,26 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
     </select>
   </div>
   <div class="form-group">
+    <label class="form-label">Rozliczenie (do protokołu)</label>
+    <select class="form-select" id="sBillingType">
+      <option value="odplatna">💰 Usługa odpłatna</option>
+      <option value="gwarancja">🛡️ Gwarancja</option>
+      <option value="inne">Inne</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Stan urządzenia po serwisie</label>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="filter-btn active" id="sDeviceOkBtn" onclick="setDeviceOk(true)" style="flex:1;text-align:center">✅ Sprawne</button>
+      <button type="button" class="filter-btn" id="sDeviceNotOkBtn" onclick="setDeviceOk(false)" style="flex:1;text-align:center">⚠️ Niesprawne</button>
+    </div>
+  </div>
+  <div class="form-group">
     <label class="form-label">Opis wykonanych prac</label>
-    <textarea class="form-textarea" id="sDesc" placeholder="np. Czyszczenie palnika, wymiana uszczelek, regulacja ciśnienia..."></textarea>
+    <div class="voice-field-row">
+      <textarea class="form-textarea" id="sDesc" placeholder="np. Czyszczenie palnika, wymiana uszczelek, regulacja ciśnienia..."></textarea>
+      <button type="button" class="voice-btn" onclick="startVoiceInput('sDesc', this)">🎙️</button>
+    </div>
   </div>
   <div class="form-row">
     <div class="form-group">
@@ -971,7 +1017,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
   <div class="form-group">
     <label class="form-label">Uwagi</label>
-    <textarea class="form-textarea" id="sNotes" placeholder="Dodatkowe uwagi..."></textarea>
+    <div class="voice-field-row">
+      <textarea class="form-textarea" id="sNotes" placeholder="Dodatkowe uwagi..."></textarea>
+      <button type="button" class="voice-btn" onclick="startVoiceInput('sNotes', this)">🎙️</button>
+    </div>
   </div>
 
   <div class="form-group">
@@ -1029,7 +1078,19 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
 
   <div class="form-group">
     <label class="form-label">Notatka</label>
-    <textarea class="form-textarea" id="apNote" placeholder="np. Wymiana zaworu, awaria brak ciepłej wody..."></textarea>
+    <div class="voice-field-row">
+      <textarea class="form-textarea" id="apNote" placeholder="np. Wymiana zaworu, awaria brak ciepłej wody..."></textarea>
+      <button type="button" class="voice-btn" onclick="startVoiceInput('apNote', this)">🎙️</button>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Status</label>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="filter-btn active" id="apStatusZaplanowanaBtn" onclick="setApStatus('zaplanowana')" style="flex:1;text-align:center">📅 Zaplanowana</button>
+      <button type="button" class="filter-btn" id="apStatusWTrakcieBtn" onclick="setApStatus('w_trakcie')" style="flex:1;text-align:center">🚐 W trakcie</button>
+      <button type="button" class="filter-btn" id="apStatusWykonanaBtn" onclick="setApStatus('wykonana')" style="flex:1;text-align:center">✅ Wykonana</button>
+    </div>
   </div>
 
   <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
@@ -1167,6 +1228,28 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Klienci pogrupowani wg bliskości adresu (promień z Ustawień). To tylko podpowiedź — sam decydujesz, w jakiej kolejności i którego dnia ich odwiedzić.</div>
   <div id="locationGroupsList"></div>
   <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalLocationGroups')">Zamknij</button>
+</div>
+</div>
+
+<!-- ══ MODAL: GENERUJ PROTOKÓŁ SERWISOWY ══ -->
+<div class="modal-overlay" id="modalProtocolGenerate">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">🖊️ Generuj protokół serwisowy</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Protokół powstanie automatycznie z danych klienta, kotła i tego wpisu serwisowego. Poproś klienta o podpis poniżej, a potem wygeneruj i udostępnij.</div>
+
+  <div id="protocolPreviewSummary" style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px"></div>
+
+  <label class="form-label">Podpis klienta</label>
+  <div style="position:relative;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;margin-bottom:10px">
+    <canvas id="signatureCanvas" style="width:100%;height:180px;display:block;touch-action:none"></canvas>
+  </div>
+  <button class="btn btn-secondary" onclick="clearSignature()" style="margin-bottom:16px">🧹 Wyczyść podpis</button>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="confirmGenerateProtocol()">📤 Generuj i udostępnij protokół</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalProtocolGenerate')">Anuluj</button>
+  </div>
 </div>
 </div>
 
@@ -1720,6 +1803,19 @@ function renderPulpit() {
   const miesiace = ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'];
   document.getElementById('pulpitDate').textContent = `${dniTyg[now.getDay()]}, ${now.getDate()} ${miesiace[now.getMonth()]} ${now.getFullYear()}`;
 
+  const lastBackup = localStorage.getItem('last_backup_date');
+  const daysSinceBackup = lastBackup ? Math.floor((now - new Date(lastBackup)) / (1000 * 60 * 60 * 24)) : null;
+  const reminderEl = document.getElementById('pulpitBackupReminder');
+  if (daysSinceBackup === null || daysSinceBackup >= 7) {
+    const msg = daysSinceBackup === null ? 'Nigdy nie zrobiłeś backupu danych' : `Ostatni backup: ${daysSinceBackup} dni temu`;
+    reminderEl.innerHTML = `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--accent)44;border-radius:10px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="showTab('ustawienia')">
+      <div style="font-size:20px">🔐</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:13px">Zrób backup danych</div><div style="font-size:11px;color:var(--muted)">${msg} — kliknij, żeby przejść do Ustawień</div></div>
+    </div>`;
+  } else {
+    reminderEl.innerHTML = '';
+  }
+
   const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
   document.getElementById('pulpitOverdue').textContent = overdueCount;
 
@@ -1834,10 +1930,16 @@ function showDetail(id) {
     <div class="detail-actions">
       ${c.phone ? `<button class="action-btn call" onclick="window.location='tel:${c.phone}'">📞 Zadzwoń</button>` : ''}
       ${c.phone ? `<button class="action-btn" style="border-color:var(--green)44;color:var(--green);background:var(--green)11" onclick="sendSMS('${c.id}')">💬 SMS</button>` : ''}
+      ${(c.street || c.city) ? `<button class="action-btn" style="border-color:var(--blue)44;color:var(--blue);background:var(--blue)11" onclick="navigateToClient('${c.id}')">🧭 Nawiguj</button>` : ''}
       <button class="action-btn edit" onclick="openEditClient('${c.id}')">✏️ Edytuj</button>
       <button class="action-btn service" onclick="openAddService('${c.id}')">🔧 Serwis</button>
       <button class="action-btn" style="border-color:var(--red)44;color:var(--red);background:var(--red)11" onclick="deleteClientConfirm('${c.id}')">🗑 Usuń</button>
     </div>
+
+    ${st === 'overdue' ? `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="toggleSmsReminderSent('${c.id}')">
+      <div class="toggle ${c.smsReminderSent ? 'on' : ''}" id="smsReminderToggle"></div>
+      <div style="font-size:13px">📱 Wysłano SMS z przypomnieniem o przeterminowanym serwisie${c.smsReminderSentDate ? ` <span style="color:var(--muted)">(${formatDate(c.smsReminderSentDate)})</span>` : ''}</div>
+    </div>` : ''}
 
     ${(yearTotal > 0 || allTotal > 0) ? `<div class="zlecenia-summary">
       <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--green)">${yearTotal} zł</div><div class="zl-sum-label">W ${nowYear} roku</div></div>
@@ -1852,7 +1954,10 @@ function showDetail(id) {
         <div class="history-item">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div class="hi-date">${formatDate(s.date)}</div>
-            <button class="io-btn" style="padding:6px 10px;font-size:12px" onclick="editService('${c.id}','${s.id}')">✏️ Edytuj</button>
+            <div style="display:flex;gap:6px">
+              <button class="io-btn" style="padding:6px 10px;font-size:12px;background:var(--blue)" onclick="event.stopPropagation();openGenerateProtocol('${c.id}','${s.id}')">🖊️ Protokół</button>
+              <button class="io-btn" style="padding:6px 10px;font-size:12px" onclick="editService('${c.id}','${s.id}')">✏️ Edytuj</button>
+            </div>
           </div>
           ${s.desc ? `<div class="hi-desc">${s.desc}</div>` : ''}
           ${(s.cost||s.parts) ? `<div class="hi-cost">Robocizna: ${s.cost||0} zł · Części: ${s.parts||0} zł · Razem: ${(+s.cost||0)+(+s.parts||0)} zł</div>` : ''}
@@ -2078,6 +2183,8 @@ function openAddService(id) {
 
   document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('sType').value = 'konserwacja';
+  document.getElementById('sBillingType').value = 'odplatna';
+  setDeviceOk(true);
   document.getElementById('sDesc').value = '';
   document.getElementById('sCost').value = '';
   document.getElementById('sParts').value = '';
@@ -2106,6 +2213,13 @@ function openAddService(id) {
   openModal('modalService');
 }
 
+let currentDeviceOk = true;
+function setDeviceOk(ok) {
+  currentDeviceOk = ok;
+  document.getElementById('sDeviceOkBtn').classList.toggle('active', ok);
+  document.getElementById('sDeviceNotOkBtn').classList.toggle('active', !ok);
+}
+
 function saveService() {
   const date = document.getElementById('sDate').value;
   if (!date) { showToast('❌ Wybierz datę!', true); return; }
@@ -2122,11 +2236,15 @@ function saveService() {
   }
   
   if (!c.services) c.services = [];
+  c.smsReminderSent = false;
+  c.smsReminderSentDate = null;
   c.services.push({
     id: genId(),
     date,
     time: nextAvailableServiceTime(date, null),
     type: document.getElementById('sType').value || 'konserwacja',
+    billingType: document.getElementById('sBillingType').value || 'odplatna',
+    deviceOk: currentDeviceOk,
     desc: document.getElementById('sDesc').value.trim(),
     cost: document.getElementById('sCost').value,
     parts: document.getElementById('sParts').value,
@@ -2282,12 +2400,16 @@ let wizGridStart;
 function wizGridPrev() { wizGridStart.setDate(wizGridStart.getDate() - 3); renderWizGrid(); }
 function wizGridNext() { wizGridStart.setDate(wizGridStart.getDate() + 3); renderWizGrid(); }
 
+const AP_STATUS_COLORS = { zaplanowana: 'var(--accent)', w_trakcie: 'var(--blue)', wykonana: 'var(--green)' };
+const AP_STATUS_ICONS = { zaplanowana: '📅', w_trakcie: '🚐', wykonana: '✅' };
+
 function getWizItemsForDate(dateStr) {
   return appointments.filter(a => a.date === dateStr).map(a => {
     const client = a.clientId ? clients.find(c => c.id === a.clientId) : null;
     const label = client ? client.name : (a.name || 'Wizyta');
     const addr = client ? [client.street, client.city].filter(Boolean).join(', ') : (a.phone || '');
-    return { time: a.time, color: 'var(--accent)', title: label, subtitle: addr, apptId: a.id, onclick: `openAppointmentForm('${dateStr}','${a.time}','${a.id}')` };
+    const status = a.status || 'zaplanowana';
+    return { time: a.time, color: AP_STATUS_COLORS[status], title: `${AP_STATUS_ICONS[status]} ${label}`, subtitle: addr, apptId: a.id, onclick: `openAppointmentForm('${dateStr}','${a.time}','${a.id}')` };
   });
 }
 
@@ -2412,6 +2534,15 @@ function applyAppointmentMove(apptId, newDate, newTime) {
   renderWizGrid();
 }
 
+let currentApStatus = 'zaplanowana';
+
+function setApStatus(status) {
+  currentApStatus = status;
+  document.getElementById('apStatusZaplanowanaBtn').classList.toggle('active', status === 'zaplanowana');
+  document.getElementById('apStatusWTrakcieBtn').classList.toggle('active', status === 'w_trakcie');
+  document.getElementById('apStatusWykonanaBtn').classList.toggle('active', status === 'wykonana');
+}
+
 function openAppointmentForm(dateStr, timeStr, apptId) {
   editingAppointment = { date: dateStr, time: timeStr, id: apptId };
   const appt = apptId ? appointments.find(a => a.id === apptId) : null;
@@ -2421,6 +2552,7 @@ function openAppointmentForm(dateStr, timeStr, apptId) {
   document.getElementById('apPhone').value = appt ? (appt.phone || '') : '';
   document.getElementById('apNote').value = appt ? (appt.note || '') : '';
   selectedApClientId = appt ? (appt.clientId || null) : null;
+  setApStatus(appt ? (appt.status || 'zaplanowana') : 'zaplanowana');
   renderApClientList('');
   document.getElementById('apDeleteBtn').style.display = appt ? '' : 'none';
   openModal('modalAppointment');
@@ -2467,8 +2599,9 @@ function saveAppointment() {
     appt.name = name;
     appt.phone = phone;
     appt.note = note;
+    appt.status = currentApStatus;
   } else {
-    appointments.push({ id: genId(), date, time, clientId: selectedApClientId, name, phone, note });
+    appointments.push({ id: genId(), date, time, clientId: selectedApClientId, name, phone, note, status: currentApStatus });
   }
   saveAppointments();
   closeModal('modalAppointment');
@@ -2990,7 +3123,7 @@ async function sendBackupEmail() {
   const dateStamp = new Date().toISOString().split('T')[0];
   const fileName = `backup-serwis-kotlow-${dateStamp}.json`;
   const ok = await shareGeneratedFile(fileName, JSON.stringify(backup, null, 2), 'Zapisz / wyślij backup');
-  if (ok) showToast('✅ Wybierz gdzie zapisać backup!');
+  if (ok) { localStorage.setItem('last_backup_date', dateStamp); showToast('✅ Wybierz gdzie zapisać backup!'); }
 }
 
 // ══════════════════════════════════════════════════
@@ -3064,6 +3197,248 @@ async function shareBinaryFile(fileName, base64Data, dialogTitle) {
   }
 }
 
+// ══════════════════════════════════════════════════
+// GENEROWANIE PROTOKOŁU SERWISOWEGO (Z PODPISEM)
+// ══════════════════════════════════════════════════
+let protocolContext = null;
+let sigCtx = null, sigDrawing = false;
+
+function openGenerateProtocol(clientId, serviceId) {
+  const c = clients.find(x => x.id === clientId);
+  const s = c && (c.services || []).find(x => x.id === serviceId);
+  if (!c || !s) { showToast('Nie znaleziono serwisu', true); return; }
+  protocolContext = { clientId, serviceId };
+
+  const addr = [c.street, c.zip, c.city].filter(Boolean).join(', ');
+  document.getElementById('protocolPreviewSummary').innerHTML = `
+    <div><strong>${c.clientType === 'firma' && c.companyName ? c.companyName : c.name}</strong></div>
+    <div style="color:var(--muted)">${addr || 'Brak adresu'}</div>
+    <div style="margin-top:6px">${c.boilerModel || 'Brak modelu kotła'}</div>
+    <div style="color:var(--muted)">Serwis z dnia ${formatDate(s.date)}</div>
+  `;
+
+  openModal('modalProtocolGenerate');
+  setTimeout(initSignatureCanvas, 50); // czekamy aż modal będzie w pełni widoczny (poprawny rozmiar canvasu)
+}
+
+function initSignatureCanvas() {
+  const canvas = document.getElementById('signatureCanvas');
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  sigCtx = canvas.getContext('2d');
+  sigCtx.fillStyle = '#fff';
+  sigCtx.fillRect(0, 0, canvas.width, canvas.height);
+  sigCtx.strokeStyle = '#111';
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+
+  canvas.onpointerdown = e => {
+    sigDrawing = true;
+    const r = canvas.getBoundingClientRect();
+    sigCtx.beginPath();
+    sigCtx.moveTo(e.clientX - r.left, e.clientY - r.top);
+  };
+  canvas.onpointermove = e => {
+    if (!sigDrawing) return;
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    sigCtx.lineTo(e.clientX - r.left, e.clientY - r.top);
+    sigCtx.stroke();
+  };
+  canvas.onpointerup = () => { sigDrawing = false; };
+  canvas.onpointercancel = () => { sigDrawing = false; };
+}
+
+function clearSignature() {
+  if (!sigCtx) return;
+  const canvas = document.getElementById('signatureCanvas');
+  sigCtx.fillStyle = '#fff';
+  sigCtx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function isSignatureEmpty() {
+  const canvas = document.getElementById('signatureCanvas');
+  const blank = document.createElement('canvas');
+  blank.width = canvas.width; blank.height = canvas.height;
+  const blankCtx = blank.getContext('2d');
+  blankCtx.fillStyle = '#fff';
+  blankCtx.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL() === blank.toDataURL();
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = String(text).split(' ');
+  let line = '';
+  let lines = 0;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+      ctx.fillText(line, x, y + lines * lineHeight);
+      line = words[n] + ' ';
+      lines++;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, x, y + lines * lineHeight);
+  return lines + 1; // liczba linii zajętych
+}
+
+async function confirmGenerateProtocol() {
+  if (!protocolContext) return;
+  const c = clients.find(x => x.id === protocolContext.clientId);
+  const s = c && (c.services || []).find(x => x.id === protocolContext.serviceId);
+  if (!c || !s) return;
+
+  showToast('🖊️ Generowanie protokołu...');
+
+  const W = 1000, PAD = 50;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  // Wysokość dobierzemy dynamicznie w trakcie rysowania - najpierw szacujemy z zapasem, potem przytniemy
+  canvas.height = 1800;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textBaseline = 'top';
+
+  let y = PAD;
+
+  // Nagłówek
+  ctx.fillStyle = '#111';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText('PROTOKÓŁ USŁUGI SERWISOWEJ', PAD, y);
+  y += 42;
+  ctx.font = '15px sans-serif';
+  ctx.fillStyle = '#555';
+  ctx.fillText('INSTAL-SERWIS Adam Baca', PAD, y);
+  y += 22;
+  ctx.fillText(`Data wygenerowania: ${formatDate(new Date().toISOString().split('T')[0])}`, PAD, y);
+  y += 36;
+  ctx.strokeStyle = '#ccc';
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+  y += 30;
+
+  function sectionTitle(title) {
+    ctx.font = 'bold 17px sans-serif';
+    ctx.fillStyle = '#111';
+    ctx.fillText(title, PAD, y);
+    y += 26;
+  }
+  function fieldLine(label, value) {
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#777';
+    ctx.fillText(label, PAD, y);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#111';
+    ctx.fillText(value || '—', PAD + 190, y);
+    y += 24;
+  }
+
+  // Dane urządzenia
+  sectionTitle('Dane urządzenia');
+  fieldLine('Nazwa urządzenia:', c.boilerModel);
+  fieldLine('Fabryka:', c.boilerFabryka);
+  fieldLine('Kod FD:', c.boilerFD);
+  fieldLine('Nr seryjny:', c.boilerSerial);
+  fieldLine('Nr katalogowy:', c.boilerKatalogowy);
+  y += 14;
+
+  // Dane klienta
+  sectionTitle('Dane klienta');
+  if (c.clientType === 'firma' && c.companyName) {
+    fieldLine('Nazwa firmy:', c.companyName);
+    fieldLine('NIP:', c.nip);
+    fieldLine('Osoba kontaktowa:', c.name);
+  } else {
+    fieldLine('Nazwisko i imię:', c.name);
+  }
+  fieldLine('Ulica, nr:', c.street);
+  fieldLine('Kod pocztowy:', c.zip);
+  fieldLine('Miejscowość:', c.city);
+  fieldLine('Telefon:', c.phone);
+  y += 14;
+
+  // Objawy / opis czynności
+  sectionTitle('Objawy / opis czynności / uwagi');
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#111';
+  if (s.desc) { const l = wrapCanvasText(ctx, s.desc, PAD, y, W - 2 * PAD, 20); y += l * 20 + 6; }
+  if (s.notes) { const l = wrapCanvasText(ctx, s.notes, PAD, y, W - 2 * PAD, 20); y += l * 20 + 6; }
+  y += 10;
+
+  // Wymienione części
+  if (s.partsUsed && s.partsUsed.length) {
+    sectionTitle('Wymienione części');
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = '#777';
+    ctx.fillText('Nr katalogowy', PAD, y);
+    ctx.fillText('Nazwa', PAD + 220, y);
+    ctx.fillText('Ilość', W - PAD - 60, y);
+    y += 20;
+    ctx.strokeStyle = '#ddd';
+    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+    y += 10;
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#111';
+    s.partsUsed.forEach(p => {
+      ctx.fillText(p.number || '—', PAD, y);
+      ctx.fillText((p.name || '—').slice(0, 30), PAD + 220, y);
+      ctx.fillText(String(p.qty), W - PAD - 60, y);
+      y += 22;
+    });
+    y += 14;
+  }
+
+  // Koszty
+  sectionTitle('Koszty');
+  const cost = parseFloat(s.cost) || 0, parts = parseFloat(s.parts) || 0;
+  fieldLine('Koszt robocizny:', `${cost.toFixed(2)} zł`);
+  fieldLine('Koszt części:', `${parts.toFixed(2)} zł`);
+  fieldLine('SUMA:', `${(cost + parts).toFixed(2)} zł`);
+  y += 14;
+
+  // Rodzaj usługi / stan urządzenia
+  sectionTitle('Rodzaj usługi i stan urządzenia');
+  const billingLabels = { gwarancja: 'Gwarancja', odplatna: 'Usługa odpłatna', inne: 'Inne' };
+  fieldLine('Rodzaj usługi:', s.type === 'uruchomienie' ? 'Pierwsze uruchomienie' : (billingLabels[s.billingType] || 'Usługa odpłatna'));
+  fieldLine('Stan urządzenia:', s.deviceOk === false ? 'Niesprawne' : 'Sprawne');
+  fieldLine('Termin nast. przeglądu:', c.nextService ? formatDate(c.nextService) : '—');
+  y += 20;
+
+  // Podpis
+  sectionTitle('Podpis klienta');
+  const sigCanvas = document.getElementById('signatureCanvas');
+  const sigImgHeight = 140;
+  const sigImgWidth = (sigCanvas.width / sigCanvas.height) * sigImgHeight;
+  ctx.strokeStyle = '#ccc';
+  ctx.strokeRect(PAD, y, sigImgWidth, sigImgHeight);
+  if (!isSignatureEmpty()) {
+    const sigImg = new Image();
+    await new Promise(resolve => {
+      sigImg.onload = resolve;
+      sigImg.src = sigCanvas.toDataURL();
+    });
+    ctx.drawImage(sigImg, PAD, y, sigImgWidth, sigImgHeight);
+  }
+  y += sigImgHeight + 40;
+
+  // Przycinamy canvas do faktycznie użytej wysokości
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = W;
+  finalCanvas.height = Math.min(y, canvas.height);
+  finalCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
+  const dataUrl = finalCanvas.toDataURL('image/png');
+  const base64 = dataUrl.split(',')[1];
+  const fileName = `protokol-${(c.name || 'klient').replace(/[^a-z0-9]/gi, '_')}-${s.date}.png`;
+
+  closeModal('modalProtocolGenerate');
+  const ok = await shareBinaryFile(fileName, base64, 'Wyślij protokół klientowi');
+  if (ok) showToast('✅ Protokół gotowy do wysłania!');
+}
+
 function editService(clientId, serviceId) {
   currentClientId = clientId;
   const c = clients.find(x => x.id === clientId);
@@ -3074,6 +3449,8 @@ function editService(clientId, serviceId) {
   document.getElementById('sClientSearch').value = c.name;
   document.getElementById('sDate').value = s.date;
   document.getElementById('sType').value = s.type || 'konserwacja';
+  document.getElementById('sBillingType').value = s.billingType || 'odplatna';
+  setDeviceOk(s.deviceOk !== false);
   document.getElementById('sDesc').value = s.desc || '';
   document.getElementById('sCost').value = s.cost || '';
   document.getElementById('sParts').value = s.parts || '';
@@ -3137,6 +3514,8 @@ function updateService(clientId, serviceId) {
     date: newDate,
     time,
     type: document.getElementById('sType').value || 'konserwacja',
+    billingType: document.getElementById('sBillingType').value || 'odplatna',
+    deviceOk: currentDeviceOk,
     desc: document.getElementById('sDesc').value.trim(),
     cost: document.getElementById('sCost').value,
     parts: document.getElementById('sParts').value,
@@ -3226,6 +3605,7 @@ function copyBackupToClipboard() {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(backupText).then(() => {
       console.log('Copied via clipboard API');
+      localStorage.setItem('last_backup_date', new Date().toISOString().split('T')[0]);
       showToast('✅ Skopiowano do schowka!');
     }).catch(err => {
       console.error('Clipboard error:', err);
@@ -3249,6 +3629,7 @@ function copyViaTextarea(text) {
   try {
     document.execCommand('copy');
     console.log('Copied via execCommand');
+    localStorage.setItem('last_backup_date', new Date().toISOString().split('T')[0]);
     showToast('✅ Skopiowano do schowka!');
   } catch (err) {
     console.error('execCommand error:', err);
@@ -3374,6 +3755,8 @@ function openAddServiceFromCalendar() {
   if (oldEditBtns) oldEditBtns.remove();
   document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('sType').value = 'konserwacja';
+  document.getElementById('sBillingType').value = 'odplatna';
+  setDeviceOk(true);
   document.getElementById('sDesc').value = '';
   document.getElementById('sCost').value = '';
   document.getElementById('sParts').value = '';
@@ -3427,6 +3810,73 @@ function openModal(id) {
 function closeModal(id) { 
   const el = document.getElementById(id);
   if (el) el.classList.remove('open');
+}
+
+// ══════════════════════════════════════════════════
+// DYKTOWANIE GŁOSOWE DO PÓL FORMULARZA
+// ══════════════════════════════════════════════════
+let activeRecognition = null;
+let activeVoiceBtn = null;
+
+function startVoiceInput(fieldId, btnEl) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('❌ Rozpoznawanie mowy niedostępne na tym urządzeniu', true);
+    return;
+  }
+
+  // Jeśli już nasłuchujemy - zatrzymaj (dotknięcie tego samego przycisku = stop)
+  if (activeRecognition) {
+    activeRecognition.stop();
+    return;
+  }
+
+  const field = document.getElementById(fieldId);
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'pl-PL';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  activeRecognition = recognition;
+  activeVoiceBtn = btnEl;
+  btnEl.classList.add('listening');
+  btnEl.textContent = '⏹️';
+  showToast('🎙️ Słucham... (mów teraz)');
+
+  recognition.onresult = (event) => {
+    const text = event.results[0][0].transcript;
+    const existing = field.value.trim();
+    field.value = existing ? `${existing} ${text}` : text;
+    showToast('✅ Wpisano!');
+  };
+
+  recognition.onerror = (event) => {
+    console.log('Speech recognition error', event.error);
+    if (event.error === 'no-speech') {
+      showToast('Nie usłyszałem nic - spróbuj ponownie', true);
+    } else if (event.error === 'not-allowed') {
+      showToast('❌ Brak zgody na mikrofon', true);
+    } else {
+      showToast('Błąd rozpoznawania mowy', true);
+    }
+  };
+
+  recognition.onend = () => {
+    btnEl.classList.remove('listening');
+    btnEl.textContent = '🎙️';
+    activeRecognition = null;
+    activeVoiceBtn = null;
+  };
+
+  try {
+    recognition.start();
+  } catch (e) {
+    console.log('Recognition start error', e);
+    showToast('Błąd uruchomienia mikrofonu', true);
+    btnEl.classList.remove('listening');
+    btnEl.textContent = '🎙️';
+    activeRecognition = null;
+  }
 }
 
 function showToast(msg, err=false) {
@@ -4039,6 +4489,24 @@ function renderMonthlyReport() {
 // ══════════════════════════════════════════════════
 // SMS DO KLIENTA
 // ══════════════════════════════════════════════════
+function navigateToClient(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  const addr = [c.street, c.zip, c.city].filter(Boolean).join(', ');
+  if (!addr) { showToast('Brak adresu', true); return; }
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
+  window.open(url, '_system');
+}
+
+function toggleSmsReminderSent(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  c.smsReminderSent = !c.smsReminderSent;
+  c.smsReminderSentDate = c.smsReminderSent ? new Date().toISOString().split('T')[0] : null;
+  save();
+  showDetail(id);
+}
+
 function sendSMS(id) {
   const c = clients.find(x => x.id === id);
   if (!c || !c.phone) return;
