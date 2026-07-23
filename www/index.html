@@ -792,7 +792,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-43 (uzupełnione domyślne dane firmy)
+    Wersja: 2026-07-12-44 (nowy wygląd protokołu - wariant B, karty + gradient)
   </div>
 </div>
 
@@ -3325,6 +3325,23 @@ function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
   return lines + 1; // liczba linii zajętych
 }
 
+function wrapLineCount(ctx, text, maxWidth) {
+  if (!text) return 0;
+  const words = String(text).split(' ');
+  let line = '';
+  let lines = 1;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+      line = words[n] + ' ';
+      lines++;
+    } else {
+      line = testLine;
+    }
+  }
+  return lines;
+}
+
 async function confirmGenerateProtocol() {
   if (!protocolContext) return;
   const c = clients.find(x => x.id === protocolContext.clientId);
@@ -3341,155 +3358,181 @@ async function confirmGenerateProtocol() {
     logoImg.src = COMPANY_LOGO_BASE64;
   });
 
-  const W = 1000, PAD = 50;
+  const W = 1000, PAD = 55;
+  const BLUE_L = '#3885db', BLUE_D = '#14386e', CARD_BG = '#f7f9fc', BORDER = '#e1e6ed', TXT_BLACK = '#191e26', TXT_GRAY = '#737a87', GREEN = '#22a064';
+
   const canvas = document.createElement('canvas');
   canvas.width = W;
   // Wysokość dobierzemy dynamicznie w trakcie rysowania - najpierw szacujemy z zapasem, potem przytniemy
-  canvas.height = 1800;
+  canvas.height = 2200;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textBaseline = 'top';
 
-  let y = PAD;
+  // Nagłówek - gradient
+  const HEADER_H = 190;
+  const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H);
+  grad.addColorStop(0, BLUE_L);
+  grad.addColorStop(1, BLUE_D);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, HEADER_H);
 
-  // Logo (prawy górny róg)
-  const logoSize = 80;
+  const logoSize = 90;
   if (logoImg.complete && logoImg.naturalWidth) {
-    ctx.drawImage(logoImg, W - PAD - logoSize, PAD, logoSize, logoSize);
+    ctx.drawImage(logoImg, PAD, 50, logoSize, logoSize);
   }
-
-  // Nagłówek
-  ctx.fillStyle = '#111';
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillText('PROTOKÓŁ USŁUGI SERWISOWEJ', PAD, y);
-  y += 40;
+  const textX = PAD + logoSize + 20;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 26px sans-serif';
+  ctx.fillText('PROTOKÓŁ USŁUGI SERWISOWEJ', textX, 55);
   ctx.font = 'bold 15px sans-serif';
-  ctx.fillStyle = '#333';
-  ctx.fillText(company.name, PAD, y);
-  y += 20;
-  ctx.font = '13px sans-serif';
-  ctx.fillStyle = '#666';
-  if (company.address) { ctx.fillText(company.address, PAD, y); y += 18; }
-  const contactLine = [company.nip ? `NIP: ${company.nip}` : '', company.phone ? `tel. ${company.phone}` : ''].filter(Boolean).join('   ');
-  if (contactLine) { ctx.fillText(contactLine, PAD, y); y += 18; }
+  ctx.fillStyle = '#dce6f5';
+  ctx.fillText(company.name, textX, 92);
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#c8d5eb';
+  let hy = 114;
+  if (company.address) { ctx.fillText(company.address, textX, hy); hy += 18; }
+  const contactLine = [company.nip ? `NIP: ${company.nip}` : '', company.phone ? `tel. ${company.phone}` : ''].filter(Boolean).join('   ·   ');
+  if (contactLine) { ctx.fillText(contactLine, textX, hy); hy += 18; }
   const webLine = [company.email, company.www].filter(Boolean).join('   ·   ');
-  if (webLine) { ctx.fillText(webLine, PAD, y); y += 18; }
-  y += 6;
-  ctx.fillText(`Data wygenerowania: ${formatDate(new Date().toISOString().split('T')[0])}`, PAD, y);
-  y += 30;
-  ctx.strokeStyle = '#ccc';
-  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
-  y += 30;
+  if (webLine) ctx.fillText(webLine, textX, hy);
 
-  function sectionTitle(title) {
-    ctx.font = 'bold 17px sans-serif';
-    ctx.fillStyle = '#111';
-    ctx.fillText(title, PAD, y);
-    y += 26;
+  let y = HEADER_H + 35;
+
+  function roundRect(x, yy, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, yy);
+    ctx.arcTo(x + w, yy, x + w, yy + h, r);
+    ctx.arcTo(x + w, yy + h, x, yy + h, r);
+    ctx.arcTo(x, yy + h, x, yy, r);
+    ctx.arcTo(x, yy, x + w, yy, r);
+    ctx.closePath();
   }
-  function fieldLine(label, value) {
-    ctx.font = '14px sans-serif';
-    ctx.fillStyle = '#777';
-    ctx.fillText(label, PAD, y);
+
+  function card(title, height, accent) {
+    accent = accent || BLUE_D;
+    roundRect(PAD - 15, y, W - 2 * PAD + 30, height, 14);
+    ctx.fillStyle = CARD_BG;
+    ctx.fill();
+    ctx.strokeStyle = BORDER;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    roundRect(PAD - 15, y, 6, height, 3);
+    ctx.fillStyle = accent;
+    ctx.fill();
     ctx.font = 'bold 15px sans-serif';
-    ctx.fillStyle = '#111';
-    ctx.fillText(value || '—', PAD + 190, y);
-    y += 24;
+    ctx.fillStyle = accent;
+    ctx.fillText(title, PAD + 8, y + 16);
+    const innerY = y + 50;
+    y += height + 20;
+    return innerY;
+  }
+
+  function field(label, value, x, yy) {
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = TXT_GRAY;
+    ctx.fillText(label, x, yy);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillStyle = TXT_BLACK;
+    ctx.fillText(value || '—', x, yy + 15);
   }
 
   // Dane urządzenia
-  sectionTitle('Dane urządzenia');
-  fieldLine('Nazwa urządzenia:', c.boilerModel);
-  fieldLine('Fabryka:', c.boilerFabryka);
-  fieldLine('Kod FD:', c.boilerFD);
-  fieldLine('Nr seryjny:', c.boilerSerial);
-  fieldLine('Nr katalogowy:', c.boilerKatalogowy);
-  y += 14;
+  let innerY = card('DANE URZĄDZENIA', 110);
+  field('Nazwa urządzenia', c.boilerModel, PAD + 10, innerY);
+  field('Fabryka', c.boilerFabryka, PAD + 10, innerY + 42);
+  field('Kod FD', c.boilerFD, PAD + 250, innerY + 42);
+  field('Nr seryjny', c.boilerSerial, PAD + 430, innerY + 42);
+  field('Nr katalogowy', c.boilerKatalogowy, PAD + 650, innerY + 42);
 
   // Dane klienta
-  sectionTitle('Dane klienta');
-  if (c.clientType === 'firma' && c.companyName) {
-    fieldLine('Nazwa firmy:', c.companyName);
-    fieldLine('NIP:', c.nip);
-    fieldLine('Osoba kontaktowa:', c.name);
+  const isFirma = c.clientType === 'firma' && c.companyName;
+  const clientCardH = isFirma ? 150 : 110;
+  innerY = card('DANE KLIENTA', clientCardH);
+  if (isFirma) {
+    field('Nazwa firmy', c.companyName, PAD + 10, innerY);
+    field('NIP', c.nip, PAD + 430, innerY);
+    field('Osoba kontaktowa', c.name, PAD + 10, innerY + 42);
+    field('Telefon', c.phone, PAD + 430, innerY + 42);
+    field('Adres', [c.street, c.zip, c.city].filter(Boolean).join(', '), PAD + 10, innerY + 84);
   } else {
-    fieldLine('Nazwisko i imię:', c.name);
+    field('Nazwisko i imię', c.name, PAD + 10, innerY);
+    field('Telefon', c.phone, PAD + 430, innerY);
+    field('Adres', [c.street, c.zip, c.city].filter(Boolean).join(', '), PAD + 10, innerY + 42);
   }
-  fieldLine('Ulica, nr:', c.street);
-  fieldLine('Kod pocztowy:', c.zip);
-  fieldLine('Miejscowość:', c.city);
-  fieldLine('Telefon:', c.phone);
-  y += 14;
 
   // Objawy / opis czynności
-  sectionTitle('Objawy / opis czynności / uwagi');
-  ctx.font = '14px sans-serif';
-  ctx.fillStyle = '#111';
-  if (s.desc) { const l = wrapCanvasText(ctx, s.desc, PAD, y, W - 2 * PAD, 20); y += l * 20 + 6; }
-  if (s.notes) { const l = wrapCanvasText(ctx, s.notes, PAD, y, W - 2 * PAD, 20); y += l * 20 + 6; }
-  y += 10;
+  ctx.font = '13px sans-serif';
+  const descText = [s.desc, s.notes].filter(Boolean).join('\n');
+  const descCardH = descText ? 70 + wrapLineCount(ctx, s.desc, W - 2 * PAD - 20) * 20 + (s.notes ? wrapLineCount(ctx, s.notes, W - 2 * PAD - 20) * 20 + 6 : 0) : 70;
+  innerY = card('OBJAWY / OPIS CZYNNOŚCI / UWAGI', descCardH);
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = TXT_BLACK;
+  let descY = innerY;
+  if (s.desc) { const l = wrapCanvasText(ctx, s.desc, PAD + 10, descY, W - 2 * PAD - 20, 20); descY += l * 20 + 6; }
+  if (s.notes) { wrapCanvasText(ctx, s.notes, PAD + 10, descY, W - 2 * PAD - 20, 20); }
 
   // Wymienione części
   if (s.partsUsed && s.partsUsed.length) {
-    sectionTitle('Wymienione części');
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillStyle = '#777';
-    ctx.fillText('Nr katalogowy', PAD, y);
-    ctx.fillText('Nazwa', PAD + 200, y);
-    ctx.fillText('Ilość', PAD + 480, y);
-    ctx.fillText('Wartość', W - PAD - 100, y);
-    y += 20;
-    ctx.strokeStyle = '#ddd';
-    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
-    y += 10;
-    ctx.font = '14px sans-serif';
-    ctx.fillStyle = '#111';
-    let partsSum = 0;
+    const partH = 60 + s.partsUsed.length * 26;
+    innerY = card('WYMIENIONE CZĘŚCI', partH);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = TXT_GRAY;
+    ctx.fillText('Nr katalogowy', PAD + 10, innerY);
+    ctx.fillText('Nazwa', PAD + 230, innerY);
+    ctx.fillText('Ilość', PAD + 480, innerY);
+    ctx.fillText('Wartość', W - PAD - 90, innerY);
+    let py = innerY + 20;
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = TXT_BLACK;
     s.partsUsed.forEach(p => {
       const value = p.qty * (p.priceGross || 0);
-      partsSum += value;
-      ctx.fillText(p.number || '—', PAD, y);
-      ctx.fillText((p.name || '—').slice(0, 26), PAD + 200, y);
-      ctx.fillText(String(p.qty), PAD + 480, y);
-      ctx.fillText(p.priceGross ? `${value.toFixed(2)} zł` : '—', W - PAD - 100, y);
-      y += 22;
+      ctx.fillText(p.number || '—', PAD + 10, py);
+      ctx.fillText((p.name || '—').slice(0, 26), PAD + 230, py);
+      ctx.fillText(String(p.qty), PAD + 480, py);
+      ctx.fillText(p.priceGross ? `${value.toFixed(2)} zł` : '—', W - PAD - 90, py);
+      py += 26;
     });
-    y += 14;
   }
 
-  // Koszty
-  sectionTitle('Koszty');
-  const cost = parseFloat(s.cost) || 0, parts = parseFloat(s.parts) || 0;
-  fieldLine('Koszt robocizny:', `${cost.toFixed(2)} zł`);
-  fieldLine('Koszt części:', `${parts.toFixed(2)} zł`);
-  fieldLine('SUMA:', `${(cost + parts).toFixed(2)} zł`);
-  y += 14;
-
-  // Rodzaj usługi / stan urządzenia
-  sectionTitle('Rodzaj usługi i stan urządzenia');
+  // Koszty i rozliczenie
+  const cost = parseFloat(s.cost) || 0, partsVal = parseFloat(s.parts) || 0;
   const billingLabels = { gwarancja: 'Gwarancja', odplatna: 'Usługa odpłatna', inne: 'Inne' };
-  fieldLine('Rodzaj usługi:', s.type === 'uruchomienie' ? 'Pierwsze uruchomienie' : (billingLabels[s.billingType] || 'Usługa odpłatna'));
-  fieldLine('Stan urządzenia:', s.deviceOk === false ? 'Niesprawne' : 'Sprawne');
-  fieldLine('Termin nast. przeglądu:', c.nextService ? formatDate(c.nextService) : '—');
-  y += 20;
+  innerY = card('KOSZTY I ROZLICZENIE', 130, GREEN);
+  field('Koszt robocizny', `${cost.toFixed(2)} zł`, PAD + 10, innerY);
+  field('Koszt części', `${partsVal.toFixed(2)} zł`, PAD + 250, innerY);
+  field('Rodzaj usługi', s.type === 'uruchomienie' ? 'Pierwsze uruchomienie' : (billingLabels[s.billingType] || 'Usługa odpłatna'), PAD + 490, innerY);
+  field('Stan urządzenia', s.deviceOk === false ? 'Niesprawne' : 'Sprawne', PAD + 10, innerY + 42);
+  field('Termin nast. przeglądu', c.nextService ? formatDate(c.nextService) : '—', PAD + 250, innerY + 42);
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillStyle = BLUE_D;
+  ctx.fillText('SUMA:', PAD + 10, innerY + 80);
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = GREEN;
+  ctx.fillText(`${(cost + partsVal).toFixed(2)} zł`, PAD + 90, innerY + 78);
 
   // Podpis
-  sectionTitle('Podpis klienta');
   const sigCanvas = document.getElementById('signatureCanvas');
-  const sigImgHeight = 140;
+  const sigImgHeight = 110;
   const sigImgWidth = (sigCanvas.width / sigCanvas.height) * sigImgHeight;
-  ctx.strokeStyle = '#ccc';
-  ctx.strokeRect(PAD, y, sigImgWidth, sigImgHeight);
+  innerY = card('PODPIS KLIENTA', 160);
+  roundRect(PAD + 10, innerY, sigImgWidth, sigImgHeight, 8);
+  ctx.strokeStyle = BORDER;
+  ctx.stroke();
   if (!isSignatureEmpty()) {
     const sigImg = new Image();
     await new Promise(resolve => {
       sigImg.onload = resolve;
       sigImg.src = sigCanvas.toDataURL();
     });
-    ctx.drawImage(sigImg, PAD, y, sigImgWidth, sigImgHeight);
+    ctx.save();
+    roundRect(PAD + 10, innerY, sigImgWidth, sigImgHeight, 8);
+    ctx.clip();
+    ctx.drawImage(sigImg, PAD + 10, innerY, sigImgWidth, sigImgHeight);
+    ctx.restore();
   }
-  y += sigImgHeight + 40;
+
 
   // Przycinamy canvas do faktycznie użytej wysokości
   const finalCanvas = document.createElement('canvas');
