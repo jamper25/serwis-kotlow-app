@@ -1397,6 +1397,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div class="sms-card">
+    <div class="sms-title">📋 Stałe zalecenia (do protokołu)</div>
+    <div class="sms-desc">Gotowe teksty zaleceń, które będziesz mógł zaznaczyć jednym dotknięciem przy generowaniu protokołu, zamiast wpisywać za każdym razem.</div>
+    <div id="recommendationsList" style="margin:10px 0"></div>
+    <div style="display:flex;gap:8px">
+      <input class="form-input" id="newRecommendationInput" placeholder="np. Utrzymuj ciśnienie w układzie ok. 1,5 bar" style="flex:1">
+      <button onclick="addRecommendation()" style="width:auto;padding:0 16px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:700;cursor:pointer">Dodaj</button>
+    </div>
+  </div>
+
+  <div class="sms-card">
     <div class="sms-title">📍 Grupowanie wg lokalizacji</div>
     <div class="sms-desc">Klienci dalej niż ten promień od siebie nie trafią do tej samej grupy (przy podpowiedzi w zakładce Wizyty). Wymaga internetu do wyszukania adresów na mapie.</div>
     <div style="display:flex;gap:8px;margin-top:8px">
@@ -1462,7 +1472,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-47 (mapa klientów z pinezkami + podpowiedź terminu wg lokalizacji)
+    Wersja: 2026-07-12-49 (kreator protokołu: checklist czynności, stałe zalecenia, zdjęcia usterek)
   </div>
 </div>
 
@@ -1950,6 +1960,22 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div id="protocolPreviewSummary" style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px"></div>
 
+  <label class="form-label">Czynności wykonane</label>
+  <div id="protocolChecklist" style="margin-bottom:16px"></div>
+
+  <label class="form-label">Zalecenia dla klienta</label>
+  <div id="protocolRecommendations" style="margin-bottom:8px"></div>
+  <input class="form-input" id="protocolCustomRecommendation" placeholder="Dodatkowe zalecenie (opcjonalnie)..." style="margin-bottom:16px">
+
+  <label class="form-label">Zdjęcia usterek do naprawy przez klienta (max 4)</label>
+  <div id="protocolIssuePhotos" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px"></div>
+  <div class="proto-actions" style="margin-bottom:16px">
+    <button class="proto-btn" onclick="document.getElementById('issuePhotoCamera').click()">📸 Aparat</button>
+    <button class="proto-btn" onclick="document.getElementById('issuePhotoGallery').click()">🖼 Galeria</button>
+  </div>
+  <input type="file" id="issuePhotoCamera" accept="image/*" capture="environment" style="display:none" onchange="addIssuePhoto(this)">
+  <input type="file" id="issuePhotoGallery" accept="image/*" style="display:none" onchange="addIssuePhoto(this)">
+
   <label class="form-label">Podpis klienta</label>
   <div style="position:relative;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;margin-bottom:10px">
     <canvas id="signatureCanvas" style="width:100%;height:180px;display:block;touch-action:none"></canvas>
@@ -2239,7 +2265,7 @@ function showTab(tab) {
   if (tab === 'kalendarz') renderCalendar();
   if (tab === 'wizyty') { renderWizCalendar(); renderWizGrid(); }
   if (tab === 'pulpit') renderPulpit();
-  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); loadGroupingRadiusUI(); loadCompanyInfoUI(); }
+  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); loadGroupingRadiusUI(); loadCompanyInfoUI(); renderRecommendationsList(); }
   if (tab === 'klienci') renderClients();
   if (tab === 'zlecenia') renderZlecenia();
   if (tab === 'magazyn') renderMagazyn();
@@ -4012,6 +4038,21 @@ async function shareBinaryFile(fileName, base64Data, dialogTitle) {
 let protocolContext = null;
 let sigCtx = null, sigDrawing = false;
 
+const CHECKLIST_ITEMS = [
+  'Kontrola szczelności gazowej urządzenia',
+  'Kontrola zabezpieczenia przeciwwypływowego gazu',
+  'Przeprowadzona analiza spalin',
+  'Kontrola stanu anody magnezowej w zasobniku',
+  'Czyszczenie / konserwacja palnika',
+  'Kontrola ciśnienia w układzie',
+  'Sprawdzenie zaworu bezpieczeństwa',
+  'Wymiana zużytych elementów',
+];
+
+let currentChecklist = [];
+let currentRecommendations = [];
+let currentIssuePhotos = [];
+
 function openGenerateProtocol(clientId, serviceId) {
   const c = clients.find(x => x.id === clientId);
   const s = c && (c.services || []).find(x => x.id === serviceId);
@@ -4026,8 +4067,89 @@ function openGenerateProtocol(clientId, serviceId) {
     <div style="color:var(--muted)">Serwis z dnia ${formatDate(s.date)}</div>
   `;
 
+  currentChecklist = (s.checklist || []).slice();
+  currentRecommendations = (s.recommendations || []).slice();
+  currentIssuePhotos = (s.issuePhotos || []).slice();
+  document.getElementById('protocolCustomRecommendation').value = '';
+
+  renderProtocolChecklist();
+  renderProtocolRecommendations();
+  renderIssuePhotos();
+
   openModal('modalProtocolGenerate');
   setTimeout(initSignatureCanvas, 50); // czekamy aż modal będzie w pełni widoczny (poprawny rozmiar canvasu)
+}
+
+function renderProtocolChecklist() {
+  document.getElementById('protocolChecklist').innerHTML = CHECKLIST_ITEMS.map(item => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer" onclick="toggleChecklistItem('${item.replace(/'/g, "\\'")}')">
+      <div class="toggle ${currentChecklist.includes(item) ? 'on' : ''}"></div>
+      <div style="font-size:13px">${item}</div>
+    </div>
+  `).join('');
+}
+
+function toggleChecklistItem(item) {
+  const idx = currentChecklist.indexOf(item);
+  if (idx >= 0) currentChecklist.splice(idx, 1);
+  else currentChecklist.push(item);
+  renderProtocolChecklist();
+}
+
+function renderProtocolRecommendations() {
+  const library = getRecommendations();
+  const el = document.getElementById('protocolRecommendations');
+  if (!library.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted)">Brak zapisanych zaleceń - dodaj je w Ustawieniach, albo wpisz poniżej jednorazowo.</div>';
+    return;
+  }
+  el.innerHTML = library.map(text => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer" onclick="toggleRecommendation('${text.replace(/'/g, "\\'")}')">
+      <div class="toggle ${currentRecommendations.includes(text) ? 'on' : ''}"></div>
+      <div style="font-size:13px">${text}</div>
+    </div>
+  `).join('');
+}
+
+function toggleRecommendation(text) {
+  const idx = currentRecommendations.indexOf(text);
+  if (idx >= 0) currentRecommendations.splice(idx, 1);
+  else currentRecommendations.push(text);
+  renderProtocolRecommendations();
+}
+
+function renderIssuePhotos() {
+  const el = document.getElementById('protocolIssuePhotos');
+  el.innerHTML = currentIssuePhotos.map((photo, idx) => `
+    <div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+      <img src="${photo}" style="width:100%;height:100%;object-fit:cover">
+      <button onclick="removeIssuePhoto(${idx})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer">✕</button>
+    </div>
+  `).join('');
+}
+
+function addIssuePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (currentIssuePhotos.length >= 4) {
+    showToast('Możesz dodać maksymalnie 4 zdjęcia', true);
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    compressImage(e.target.result, compressed => {
+      currentIssuePhotos.push(compressed);
+      renderIssuePhotos();
+    });
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function removeIssuePhoto(idx) {
+  currentIssuePhotos.splice(idx, 1);
+  renderIssuePhotos();
 }
 
 function initSignatureCanvas() {
@@ -4116,6 +4238,13 @@ async function confirmGenerateProtocol() {
   const c = clients.find(x => x.id === protocolContext.clientId);
   const s = c && (c.services || []).find(x => x.id === protocolContext.serviceId);
   if (!c || !s) return;
+
+  const customRec = document.getElementById('protocolCustomRecommendation').value.trim();
+  const allRecommendations = customRec ? [...currentRecommendations, customRec] : currentRecommendations.slice();
+  s.checklist = currentChecklist.slice();
+  s.recommendations = allRecommendations;
+  s.issuePhotos = currentIssuePhotos.slice();
+  save();
 
   showToast('🖊️ Generowanie protokołu...');
 
@@ -4242,6 +4371,35 @@ async function confirmGenerateProtocol() {
   if (s.desc) { const l = wrapCanvasText(ctx, s.desc, PAD + 10, descY, W - 2 * PAD - 20, 20); descY += l * 20 + 6; }
   if (s.notes) { wrapCanvasText(ctx, s.notes, PAD + 10, descY, W - 2 * PAD - 20, 20); }
 
+  // Czynności wykonane (checklist)
+  if (s.checklist && s.checklist.length) {
+    const checkH = 40 + s.checklist.length * 24;
+    innerY = card('CZYNNOŚCI WYKONANE', checkH);
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = TXT_BLACK;
+    let cy = innerY;
+    s.checklist.forEach(item => {
+      ctx.fillText('✓ ' + item, PAD + 10, cy);
+      cy += 24;
+    });
+  }
+
+  // Zalecenia dla klienta
+  if (s.recommendations && s.recommendations.length) {
+    ctx.font = '13px sans-serif';
+    let recLines = 0;
+    s.recommendations.forEach(r => { recLines += wrapLineCount(ctx, '• ' + r, W - 2 * PAD - 20); });
+    const recH = 40 + recLines * 20;
+    innerY = card('ZALECENIA DLA KLIENTA', recH, GREEN);
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = TXT_BLACK;
+    let ry = innerY;
+    s.recommendations.forEach(r => {
+      const l = wrapCanvasText(ctx, '• ' + r, PAD + 10, ry, W - 2 * PAD - 20, 20);
+      ry += l * 20;
+    });
+  }
+
   // Wymienione części
   if (s.partsUsed && s.partsUsed.length) {
     const partH = 60 + s.partsUsed.length * 26;
@@ -4280,6 +4438,64 @@ async function confirmGenerateProtocol() {
   ctx.font = 'bold 20px sans-serif';
   ctx.fillStyle = GREEN;
   ctx.fillText(`${(cost + partsVal).toFixed(2)} zł`, PAD + 90, innerY + 78);
+
+  // Zdjęcie z serwisu (jeśli dodane przy wpisie)
+  if (s.photo) {
+    const photoImg = new Image();
+    await new Promise(resolve => {
+      photoImg.onload = resolve;
+      photoImg.onerror = resolve;
+      photoImg.src = s.photo;
+    });
+    if (photoImg.complete && photoImg.naturalWidth) {
+      const maxW = W - 2 * PAD - 20, maxH = 320;
+      let pw = photoImg.naturalWidth, ph = photoImg.naturalHeight;
+      const scale = Math.min(maxW / pw, maxH / ph, 1);
+      pw = Math.round(pw * scale); ph = Math.round(ph * scale);
+      innerY = card('ZDJĘCIE Z SERWISU', ph + 30);
+      roundRect(PAD + 10, innerY, pw, ph, 8);
+      ctx.save();
+      roundRect(PAD + 10, innerY, pw, ph, 8);
+      ctx.clip();
+      ctx.drawImage(photoImg, PAD + 10, innerY, pw, ph);
+      ctx.restore();
+      ctx.strokeStyle = BORDER;
+      roundRect(PAD + 10, innerY, pw, ph, 8);
+      ctx.stroke();
+    }
+  }
+
+  // Zdjęcia usterek do naprawy przez klienta (siatka 2x2)
+  if (s.issuePhotos && s.issuePhotos.length) {
+    const cols = 2;
+    const cellW = (W - 2 * PAD - 20 - 10) / cols;
+    const cellH = 160;
+    const rows = Math.ceil(s.issuePhotos.length / cols);
+    const gridH = 30 + rows * (cellH + 10);
+    innerY = card('ZDJĘCIA USTEREK DO NAPRAWY PRZEZ KLIENTA', gridH, GREEN);
+    const photoImgs = await Promise.all(s.issuePhotos.map(p => new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = p;
+    })));
+    photoImgs.forEach((img, idx) => {
+      if (!img) return;
+      const col = idx % cols, row = Math.floor(idx / cols);
+      const cx = PAD + 10 + col * (cellW + 10);
+      const cy = innerY + row * (cellH + 10);
+      roundRect(cx, cy, cellW, cellH, 8);
+      ctx.save();
+      ctx.clip();
+      const scale = Math.max(cellW / img.naturalWidth, cellH / img.naturalHeight);
+      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+      ctx.drawImage(img, cx + (cellW - dw) / 2, cy + (cellH - dh) / 2, dw, dh);
+      ctx.restore();
+      ctx.strokeStyle = BORDER;
+      roundRect(cx, cy, cellW, cellH, 8);
+      ctx.stroke();
+    });
+  }
 
   // Podpis
   const sigCanvas = document.getElementById('signatureCanvas');
@@ -5115,6 +5331,41 @@ function setGroupingRadius(km) {
   localStorage.setItem('grouping_radius_km', String(km));
   ['5','10','20'].forEach(v => document.getElementById('radiusBtn' + v).classList.toggle('active', parseInt(v) === km));
   showToast(`Promień grupowania: ${km} km`);
+}
+
+function getRecommendations() {
+  return JSON.parse(localStorage.getItem('standard_recommendations') || '[]');
+}
+
+function renderRecommendationsList() {
+  const list = getRecommendations();
+  const el = document.getElementById('recommendationsList');
+  if (!el) return;
+  el.innerHTML = list.length ? list.map((r, i) => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:6px">
+      <div style="flex:1;font-size:13px">${r}</div>
+      <button onclick="deleteRecommendation(${i})" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer">✕</button>
+    </div>
+  `).join('') : '<div style="font-size:13px;color:var(--muted)">Brak zapisanych zaleceń</div>';
+}
+
+function addRecommendation() {
+  const input = document.getElementById('newRecommendationInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const list = getRecommendations();
+  list.push(text);
+  localStorage.setItem('standard_recommendations', JSON.stringify(list));
+  input.value = '';
+  renderRecommendationsList();
+  showToast('✅ Dodano zalecenie!');
+}
+
+function deleteRecommendation(idx) {
+  const list = getRecommendations();
+  list.splice(idx, 1);
+  localStorage.setItem('standard_recommendations', JSON.stringify(list));
+  renderRecommendationsList();
 }
 
 function saveCompanyInfo() {
