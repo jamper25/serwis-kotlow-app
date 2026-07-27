@@ -1472,7 +1472,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-53 (naprawa przesunięcia dat w kalendarzach - błąd strefy czasowej)
+    Wersja: 2026-07-12-54 (audyt: wyśrodkowanie dnia w siatce + naprawa martwego wyboru klienta)
   </div>
 </div>
 
@@ -3115,6 +3115,7 @@ function selectWizDay(dateStr) {
   selectedWizDay = dateStr;
   wizGridStart = new Date(dateStr);
   wizGridStart.setHours(0, 0, 0, 0);
+  wizGridStart.setDate(wizGridStart.getDate() - 1); // wyśrodkuj wybrany dzień w siatce 3-dniowej
   renderWizCalendar();
   renderWizGrid();
 }
@@ -4915,28 +4916,12 @@ function openAddServiceFromCalendar() {
   document.getElementById('sPartSearch').value = '';
   document.getElementById('sPartSearchList').innerHTML = '';
   renderSelectedServiceParts();
-  
-  // Pokaż modal wyboru klienta
-  showClientSelectForService();
+
+  // Wyczyść pole wyszukiwania klienta - użytkownik wpisuje/wybiera samodzielnie
+  document.getElementById('sClientSearch').value = '';
+  document.getElementById('sClientList').innerHTML = '';
+
   openModal('modalService');
-}
-
-function showClientSelectForService() {
-  const list = document.getElementById('zlecenieList');
-  if (!list) return;
-  
-  list.innerHTML = '<div style="margin-bottom:12px"><label style="font-size:13px;font-weight:700;margin-bottom:6px;display:block">Wybierz klienta:</label>' +
-    clients.map(c => `<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;cursor:pointer;border:2px solid var(--border)" onclick="selectClientForService('${c.id}')">
-      <div style="font-weight:600">${c.name}</div>
-      <div style="font-size:12px;color:var(--muted)">${c.boilerModel || ''}</div>
-    </div>`).join('') + '</div>';
-}
-
-function selectClientForService(id) {
-  currentClientId = id;
-  const list = document.getElementById('zlecenieList');
-  if (list) list.style.display = 'none';
-  showToast('Wybrany: ' + clients.find(x => x.id === id).name);
 }
 
 // ══════════════════════════════════════════════════
