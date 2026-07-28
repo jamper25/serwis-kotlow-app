@@ -1173,7 +1173,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div id="pulpitBackupReminder"></div>
 
-  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px">
     <div class="zl-sum-card" style="cursor:pointer" onclick="goToOverdueClients()">
       <div class="zl-sum-num" style="color:var(--red)" id="pulpitOverdue">0</div>
       <div class="zl-sum-label">Przeterminowani</div>
@@ -1182,6 +1182,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="zl-sum-num" style="color:var(--blue)" id="pulpitUpcoming">0</div>
       <div class="zl-sum-label">Wizyty (7 dni)</div>
     </div>
+  </div>
+
+  <div class="zl-sum-card" style="margin-bottom:20px">
+    <div class="zl-sum-num" style="color:var(--green)" id="pulpitMonthlyProfit">0 zł</div>
+    <div class="zl-sum-label">Zysk (robocizna) - ten miesiąc</div>
   </div>
 
   <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Nadchodzące wizyty · 7 dni</div>
@@ -1363,6 +1368,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div class="sms-card">
+    <div class="sms-title">🔄 Automatyczny zapis lokalny</div>
+    <div class="sms-desc">Po każdej zmianie (nowy klient, serwis, wizyta) aplikacja sama zapisuje aktualną kopię danych do pliku w folderze <strong>Dokumenty/SerwisKotlow/</strong> na telefonie — bez Twojego udziału.</div>
+    <div class="sms-desc" style="margin-top:8px">To NIE jest jeszcze kopia w chmurze — to tylko plik na telefonie. Żeby trafiał też do internetu (np. na wypadek zgubienia telefonu), skonfiguruj samodzielnie w aplikacji Dysk Google / Zdjęcia Google / Pliki Google automatyczną kopię zapasową folderu <strong>Dokumenty</strong> — zrobisz to raz, a dalej dzieje się to samo z siebie.</div>
+  </div>
+
+  <div class="sms-card">
     <div class="sms-title">🏢 Dane firmy (do protokołu)</div>
     <div class="sms-desc">Te dane pojawią się w nagłówku generowanego protokołu serwisowego.</div>
     <div class="form-group" style="margin-top:8px">
@@ -1472,7 +1483,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-54 (audyt: wyśrodkowanie dnia w siatce + naprawa martwego wyboru klienta)
+    Wersja: 2026-07-12-56 (automatyczny zapis do folderu Dokumenty po każdej zmianie)
   </div>
 </div>
 
@@ -2105,8 +2116,42 @@ let editingAppointment = null;
 const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 18; // ostatni slot zaczyna się o 17:00 (17-18)
 
-function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)); }
-function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.stringify(appointments)); }
+function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)); scheduleAutoBackup(); }
+function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.stringify(appointments)); scheduleAutoBackup(); }
+
+// ══════════════════════════════════════════════════
+// AUTOMATYCZNY BACKUP DO FOLDERU DOKUMENTY (po każdej zmianie danych)
+// ══════════════════════════════════════════════════
+let autoBackupTimer = null;
+function scheduleAutoBackup() {
+  if (autoBackupTimer) clearTimeout(autoBackupTimer);
+  autoBackupTimer = setTimeout(performAutoBackup, 3000);
+}
+
+async function performAutoBackup() {
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (!plugins || !plugins.Filesystem) return; // np. przeglądarka na komputerze - pomijamy po cichu
+  const { Filesystem } = plugins;
+  try {
+    const backup = {
+      timestamp: new Date().toISOString(),
+      data: clients,
+      appointments: appointments,
+      version: '2.1'
+    };
+    await Filesystem.writeFile({
+      path: 'SerwisKotlow/serwis-kotlow-backup-auto.json',
+      data: JSON.stringify(backup, null, 2),
+      directory: 'DOCUMENTS',
+      encoding: 'utf8',
+      recursive: true
+    });
+    localStorage.setItem('last_auto_backup', new Date().toISOString());
+    console.log('Auto-backup zapisany do Dokumenty/SerwisKotlow/');
+  } catch (e) {
+    console.log('Auto-backup error', e);
+  }
+}
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
@@ -2604,6 +2649,16 @@ function renderPulpit() {
 
   const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
   document.getElementById('pulpitOverdue').textContent = overdueCount;
+
+  const curMonth = now.getMonth(), curYear = now.getFullYear();
+  let monthlyProfit = 0;
+  clients.forEach(c => (c.services || []).forEach(s => {
+    const d = new Date(s.date);
+    if (d.getFullYear() === curYear && d.getMonth() === curMonth) {
+      monthlyProfit += parseFloat(s.cost) || 0;
+    }
+  }));
+  document.getElementById('pulpitMonthlyProfit').textContent = `${monthlyProfit.toFixed(2)} zł`;
 
   const todayStr = localDateStr(now);
   const in7 = new Date(now); in7.setDate(in7.getDate() + 7);
