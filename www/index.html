@@ -1226,6 +1226,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:4px"></span>Konserwacja</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin-right:4px"></span>Awaria</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Pierwsze uruchomienie</div>
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#a855f7;margin-right:4px"></span>Inne</div>
   </div>
 
   <!-- WIDOK: MIESIĄC -->
@@ -1482,7 +1483,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-60 (naprawa wyboru miesiąca - prawdziwe pole zamiast triku)
+    Wersja: 2026-07-12-62 (rodzaj serwisu: dodano "Inne" z własną nazwą)
   </div>
 </div>
 
@@ -1608,11 +1609,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="form-section">Dane pierwszego serwisu (jeśli wykonujesz go teraz)</div>
   <div class="form-group">
     <label class="form-label">Rodzaj</label>
-    <select class="form-select" id="fServiceType">
+    <select class="form-select" id="fServiceType" onchange="toggleTypeOther('fServiceType','fServiceTypeOtherWrap')">
       <option value="konserwacja">🟢 Konserwacja</option>
       <option value="awaria">🔴 Awaria</option>
       <option value="uruchomienie">🔵 Pierwsze uruchomienie</option>
+      <option value="inne">⚪ Inne</option>
     </select>
+  </div>
+  <div class="form-group" id="fServiceTypeOtherWrap" style="display:none">
+    <label class="form-label">Nazwa własna</label>
+    <input class="form-input" id="fServiceTypeOther" placeholder="np. Przegląd gwarancyjny">
   </div>
   <div class="form-group">
     <label class="form-label">Opis wykonanych prac</label>
@@ -1690,11 +1696,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
   <div class="form-group">
     <label class="form-label">Rodzaj</label>
-    <select class="form-select" id="sType">
+    <select class="form-select" id="sType" onchange="toggleTypeOther('sType','sTypeOtherWrap')">
       <option value="konserwacja">🟢 Konserwacja</option>
       <option value="awaria">🔴 Awaria</option>
       <option value="uruchomienie">🔵 Pierwsze uruchomienie</option>
+      <option value="inne">⚪ Inne</option>
     </select>
+  </div>
+  <div class="form-group" id="sTypeOtherWrap" style="display:none">
+    <label class="form-label">Nazwa własna</label>
+    <input class="form-input" id="sTypeOther" placeholder="np. Przegląd gwarancyjny">
   </div>
   <div class="form-group">
     <label class="form-label">Rozliczenie (do protokołu)</label>
@@ -2214,6 +2225,8 @@ function removeNewClientPhoto() {
 function resetNewClientServiceForm() {
   newClientPhotoData = null;
   document.getElementById('fServiceType').value = 'konserwacja';
+  document.getElementById('fServiceTypeOther').value = '';
+  document.getElementById('fServiceTypeOtherWrap').style.display = 'none';
   document.getElementById('fServiceDesc').value = '';
   document.getElementById('fServiceCost').value = '';
   document.getElementById('fServiceParts').value = '';
@@ -2970,6 +2983,7 @@ function saveClient() {
         date: firstServiceDate,
         time: nextAvailableServiceTime(firstServiceDate, null),
         type: document.getElementById('fServiceType').value || 'konserwacja',
+        typeOther: document.getElementById('fServiceType').value === 'inne' ? document.getElementById('fServiceTypeOther').value.trim() : '',
         desc: sDesc,
         cost: sCost,
         parts: sParts,
@@ -3013,6 +3027,8 @@ function openAddService(id) {
 
   document.getElementById('sDate').value = localDateStr(new Date());
   document.getElementById('sType').value = 'konserwacja';
+  document.getElementById('sTypeOther').value = '';
+  document.getElementById('sTypeOtherWrap').style.display = 'none';
   document.getElementById('sBillingType').value = 'odplatna';
   setDeviceOk(true);
   document.getElementById('sDesc').value = '';
@@ -3073,6 +3089,7 @@ function saveService() {
     date,
     time: nextAvailableServiceTime(date, null),
     type: document.getElementById('sType').value || 'konserwacja',
+    typeOther: document.getElementById('sType').value === 'inne' ? document.getElementById('sTypeOther').value.trim() : '',
     billingType: document.getElementById('sBillingType').value || 'odplatna',
     deviceOk: currentDeviceOk,
     desc: document.getElementById('sDesc').value.trim(),
@@ -3152,16 +3169,25 @@ function initWizCal() {
   wizGridStart = new Date(now);
   wizGridStart.setHours(0, 0, 0, 0);
 }
-function wizCalPrev() { wizCalMonth--; if(wizCalMonth<0){wizCalMonth=11;wizCalYear--;} renderWizCalendar(); }
+function wizCalPrev() { wizCalMonth--; if(wizCalMonth<0){wizCalMonth=11;wizCalYear--;} syncWizGridToMonth(); renderWizCalendar(); renderWizGrid(); }
 
 function jumpToWizMonth(value) {
   if (!value) return;
   const [y, m] = value.split('-').map(Number);
   wizCalYear = y;
   wizCalMonth = m - 1;
+  syncWizGridToMonth();
   renderWizCalendar();
+  renderWizGrid();
 }
-function wizCalNext() { wizCalMonth++; if(wizCalMonth>11){wizCalMonth=0;wizCalYear++;} renderWizCalendar(); }
+
+function syncWizGridToMonth() {
+  const firstOfMonth = new Date(wizCalYear, wizCalMonth, 1);
+  selectedWizDay = localDateStr(firstOfMonth);
+  wizGridStart = new Date(firstOfMonth);
+  wizGridStart.setHours(0, 0, 0, 0);
+}
+function wizCalNext() { wizCalMonth++; if(wizCalMonth>11){wizCalMonth=0;wizCalYear++;} syncWizGridToMonth(); renderWizCalendar(); renderWizGrid(); }
 
 function wizGoToday() {
   const now = new Date();
@@ -4658,6 +4684,8 @@ function editService(clientId, serviceId) {
   document.getElementById('sClientSearch').value = c.name;
   document.getElementById('sDate').value = s.date;
   document.getElementById('sType').value = s.type || 'konserwacja';
+  document.getElementById('sTypeOther').value = s.typeOther || '';
+  toggleTypeOther('sType', 'sTypeOtherWrap');
   document.getElementById('sBillingType').value = s.billingType || 'odplatna';
   setDeviceOk(s.deviceOk !== false);
   document.getElementById('sDesc').value = s.desc || '';
@@ -4723,6 +4751,7 @@ function updateService(clientId, serviceId) {
     date: newDate,
     time,
     type: document.getElementById('sType').value || 'konserwacja',
+    typeOther: document.getElementById('sType').value === 'inne' ? document.getElementById('sTypeOther').value.trim() : '',
     billingType: document.getElementById('sBillingType').value || 'odplatna',
     deviceOk: currentDeviceOk,
     desc: document.getElementById('sDesc').value.trim(),
@@ -4964,6 +4993,8 @@ function openAddServiceFromCalendar() {
   if (oldEditBtns) oldEditBtns.remove();
   document.getElementById('sDate').value = localDateStr(new Date());
   document.getElementById('sType').value = 'konserwacja';
+  document.getElementById('sTypeOther').value = '';
+  document.getElementById('sTypeOtherWrap').style.display = 'none';
   document.getElementById('sBillingType').value = 'odplatna';
   setDeviceOk(true);
   document.getElementById('sDesc').value = '';
@@ -5420,7 +5451,12 @@ async function scanPartNumber(input) {
 // ══════════════════════════════════════════════════
 let zlCalYear, zlCalMonth, zlSelectedDay, zlMode = 'miesiac', zlWeekStart;
 
-const ZL_TYPE_COLORS = { konserwacja: 'var(--green)', awaria: 'var(--red)', uruchomienie: 'var(--blue)' };
+const ZL_TYPE_COLORS = { konserwacja: 'var(--green)', awaria: 'var(--red)', uruchomienie: 'var(--blue)', inne: '#a855f7' };
+
+function toggleTypeOther(selectId, wrapId) {
+  const val = document.getElementById(selectId).value;
+  document.getElementById(wrapId).style.display = val === 'inne' ? '' : 'none';
+}
 
 // ══════════════════════════════════════════════════
 // GRUPOWANIE KLIENTÓW WG LOKALIZACJI
@@ -5659,11 +5695,20 @@ function jumpToZlMonth(value) {
   const [y, m] = value.split('-').map(Number);
   zlCalYear = y;
   zlCalMonth = m - 1;
+  syncZlGridToMonth();
   renderZlecenia();
 }
 
-function zlMonthPrev() { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } renderZlecenia(); }
-function zlMonthNext() { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } renderZlecenia(); }
+function syncZlGridToMonth() {
+  const firstOfMonth = new Date(zlCalYear, zlCalMonth, 1);
+  zlSelectedDay = localDateStr(firstOfMonth);
+  zlWeekStart = getMondayOf(firstOfMonth);
+  zlGridStart = new Date(firstOfMonth);
+  zlGridStart.setHours(0, 0, 0, 0);
+}
+
+function zlMonthPrev() { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } syncZlGridToMonth(); renderZlecenia(); }
+function zlMonthNext() { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } syncZlGridToMonth(); renderZlecenia(); }
 function zlWeekPrev() { zlWeekStart.setDate(zlWeekStart.getDate() - 7); renderZlecenia(); }
 function zlWeekNext() { zlWeekStart.setDate(zlWeekStart.getDate() + 7); renderZlecenia(); }
 
