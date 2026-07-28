@@ -1213,10 +1213,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="section" id="sec-zlecenia">
   <div class="zlecenia-summary" id="zleceniaSummary"></div>
 
-  <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--surface2);border-radius:12px;padding:4px">
-    <button class="zl-mode-btn active" id="zlModeMiesiacBtn" onclick="zlSetMode('miesiac')" style="flex:1">Miesiąc</button>
-    <button class="zl-mode-btn" id="zlModeTydzienBtn" onclick="zlSetMode('tydzien')" style="flex:1">Tydzień</button>
-    <button class="zl-mode-btn" id="zlModeDzienBtn" onclick="zlSetMode('dzien')" style="flex:1">Dzień</button>
+  <div style="display:flex;gap:6px;margin-bottom:14px">
+    <div style="display:flex;gap:6px;background:var(--surface2);border-radius:12px;padding:4px;flex:1">
+      <button class="zl-mode-btn active" id="zlModeMiesiacBtn" onclick="zlSetMode('miesiac')" style="flex:1">Miesiąc</button>
+      <button class="zl-mode-btn" id="zlModeTydzienBtn" onclick="zlSetMode('tydzien')" style="flex:1">Tydzień</button>
+      <button class="zl-mode-btn" id="zlModeDzienBtn" onclick="zlSetMode('dzien')" style="flex:1">Dzień</button>
+    </div>
+    <button class="wk-nav-btn" onclick="zlGoToday()">📍 Dziś</button>
   </div>
 
   <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:var(--muted)">
@@ -1229,7 +1232,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div id="zlViewMiesiac">
     <div class="cal-header">
       <button class="cal-nav" onclick="zlMonthPrev()">‹</button>
-      <div class="cal-month" id="zlRangeLabel"></div>
+      <input type="month" class="cal-month" id="zlRangeLabel" onchange="jumpToZlMonth(this.value)" style="background:none;border:none;color:inherit;font:inherit;text-align:center;width:auto;max-width:60%">
       <button class="cal-nav" onclick="zlMonthNext()">›</button>
     </div>
     <div class="cal-grid" id="zlCalGrid"></div>
@@ -1285,9 +1288,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div class="cal-header">
     <button class="cal-nav" onclick="wizCalPrev()">‹</button>
-    <div class="cal-month" id="wizCalMonthLabel"></div>
+    <input type="month" class="cal-month" id="wizCalMonthLabel" onchange="jumpToWizMonth(this.value)" style="background:none;border:none;color:inherit;font:inherit;text-align:center;width:auto;max-width:60%">
     <button class="cal-nav" onclick="wizCalNext()">›</button>
   </div>
+  <button class="wk-nav-btn" onclick="wizGoToday()" style="width:100%;margin-bottom:10px">📍 Dziś</button>
   <div class="cal-grid" id="wizCalGrid"></div>
 
   <div class="wk-nav-row" style="margin-top:12px">
@@ -1478,7 +1482,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-57 (usunięto kartę zysku miesięcznego z Pulpitu)
+    Wersja: 2026-07-12-60 (naprawa wyboru miesiąca - prawdziwe pole zamiast triku)
   </div>
 </div>
 
@@ -3149,7 +3153,22 @@ function initWizCal() {
   wizGridStart.setHours(0, 0, 0, 0);
 }
 function wizCalPrev() { wizCalMonth--; if(wizCalMonth<0){wizCalMonth=11;wizCalYear--;} renderWizCalendar(); }
+
+function jumpToWizMonth(value) {
+  if (!value) return;
+  const [y, m] = value.split('-').map(Number);
+  wizCalYear = y;
+  wizCalMonth = m - 1;
+  renderWizCalendar();
+}
 function wizCalNext() { wizCalMonth++; if(wizCalMonth>11){wizCalMonth=0;wizCalYear++;} renderWizCalendar(); }
+
+function wizGoToday() {
+  const now = new Date();
+  wizCalYear = now.getFullYear();
+  wizCalMonth = now.getMonth();
+  selectWizDay(localDateStr(now));
+}
 
 function selectWizDay(dateStr) {
   selectedWizDay = dateStr;
@@ -3162,7 +3181,7 @@ function selectWizDay(dateStr) {
 
 function renderWizCalendar() {
   const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
-  document.getElementById('wizCalMonthLabel').textContent = `${months[wizCalMonth]} ${wizCalYear}`;
+  document.getElementById('wizCalMonthLabel').value = `${wizCalYear}-${String(wizCalMonth + 1).padStart(2, '0')}`;
 
   const firstDay = new Date(wizCalYear, wizCalMonth, 1).getDay();
   const daysInMonth = new Date(wizCalYear, wizCalMonth+1, 0).getDate();
@@ -5635,6 +5654,14 @@ function zlSetMode(mode) {
   renderZlecenia();
 }
 
+function jumpToZlMonth(value) {
+  if (!value) return;
+  const [y, m] = value.split('-').map(Number);
+  zlCalYear = y;
+  zlCalMonth = m - 1;
+  renderZlecenia();
+}
+
 function zlMonthPrev() { zlCalMonth--; if (zlCalMonth < 0) { zlCalMonth = 11; zlCalYear--; } renderZlecenia(); }
 function zlMonthNext() { zlCalMonth++; if (zlCalMonth > 11) { zlCalMonth = 0; zlCalYear++; } renderZlecenia(); }
 function zlWeekPrev() { zlWeekStart.setDate(zlWeekStart.getDate() - 7); renderZlecenia(); }
@@ -5642,6 +5669,20 @@ function zlWeekNext() { zlWeekStart.setDate(zlWeekStart.getDate() + 7); renderZl
 
 function zlSelectDay(dateStr) {
   zlSelectedDay = dateStr;
+  zlWeekStart = getMondayOf(new Date(dateStr));
+  zlGridStart = new Date(dateStr);
+  zlGridStart.setHours(0, 0, 0, 0);
+  renderZlecenia();
+}
+
+function zlGoToday() {
+  const now = new Date();
+  zlCalYear = now.getFullYear();
+  zlCalMonth = now.getMonth();
+  zlSelectedDay = localDateStr(now);
+  zlWeekStart = getMondayOf(now);
+  zlGridStart = new Date(now);
+  zlGridStart.setHours(0, 0, 0, 0);
   renderZlecenia();
 }
 
@@ -5691,7 +5732,7 @@ function renderZlGrid() {
 // ── WIDOK MIESIĄC: kalendarz z liczbą zleceń, bez kwot ──
 function renderZlMonth() {
   const months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
-  document.getElementById('zlRangeLabel').textContent = `${months[zlCalMonth]} ${zlCalYear}`;
+  document.getElementById('zlRangeLabel').value = `${zlCalYear}-${String(zlCalMonth + 1).padStart(2, '0')}`;
 
   const firstDay = new Date(zlCalYear, zlCalMonth, 1).getDay();
   const daysInMonth = new Date(zlCalYear, zlCalMonth + 1, 0).getDate();
