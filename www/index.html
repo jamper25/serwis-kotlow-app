@@ -1184,11 +1184,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
     </div>
   </div>
 
-  <div class="zl-sum-card" style="margin-bottom:20px">
-    <div class="zl-sum-num" style="color:var(--green)" id="pulpitMonthlyProfit">0 zł</div>
-    <div class="zl-sum-label">Zysk (robocizna) - ten miesiąc</div>
-  </div>
-
   <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Nadchodzące wizyty · 7 dni</div>
   <div id="pulpitUpcomingList"></div>
 </div>
@@ -1483,7 +1478,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-56 (automatyczny zapis do folderu Dokumenty po każdej zmianie)
+    Wersja: 2026-07-12-57 (usunięto kartę zysku miesięcznego z Pulpitu)
   </div>
 </div>
 
@@ -2649,16 +2644,6 @@ function renderPulpit() {
 
   const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
   document.getElementById('pulpitOverdue').textContent = overdueCount;
-
-  const curMonth = now.getMonth(), curYear = now.getFullYear();
-  let monthlyProfit = 0;
-  clients.forEach(c => (c.services || []).forEach(s => {
-    const d = new Date(s.date);
-    if (d.getFullYear() === curYear && d.getMonth() === curMonth) {
-      monthlyProfit += parseFloat(s.cost) || 0;
-    }
-  }));
-  document.getElementById('pulpitMonthlyProfit').textContent = `${monthlyProfit.toFixed(2)} zł`;
 
   const todayStr = localDateStr(now);
   const in7 = new Date(now); in7.setDate(in7.getDate() + 7);
