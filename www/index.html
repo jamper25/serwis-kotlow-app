@@ -1566,7 +1566,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-68 (przełącznik motywu: ciemny / jasny)
+    Wersja: 2026-07-12-69 (backup teraz obejmuje magazyn, dane firmy i zalecenia)
   </div>
 </div>
 
@@ -2226,12 +2226,7 @@ async function performAutoBackup() {
   if (!plugins || !plugins.Filesystem) return; // np. przeglądarka na komputerze - pomijamy po cichu
   const { Filesystem } = plugins;
   try {
-    const backup = {
-      timestamp: new Date().toISOString(),
-      data: clients,
-      appointments: appointments,
-      version: '2.1'
-    };
+    const backup = buildBackupObject();
     await Filesystem.writeFile({
       path: 'SerwisKotlow/serwis-kotlow-backup-auto.json',
       data: JSON.stringify(backup, null, 2),
@@ -2247,6 +2242,20 @@ async function performAutoBackup() {
 }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+// Pełny backup - WSZYSTKIE dane aplikacji, nie tylko klienci/wizyty
+function buildBackupObject() {
+  return {
+    timestamp: new Date().toISOString(),
+    data: clients,
+    appointments: appointments,
+    magazyn: (typeof magazyn !== 'undefined') ? magazyn : [],
+    magazynHistoria: (typeof magazynHistoria !== 'undefined') ? magazynHistoria : [],
+    companyInfo: JSON.parse(localStorage.getItem('company_info') || '{}'),
+    recommendations: JSON.parse(localStorage.getItem('standard_recommendations') || '[]'),
+    version: '2.2'
+  };
+}
 
 // Zwraca datę w formacie RRRR-MM-DD wg CZASU LOKALNEGO (nie UTC jak toISOString!).
 // Kluczowe dla poprawnego działania kalendarzy - Polska latem to UTC+2, więc
@@ -4138,12 +4147,7 @@ function filterServiceClients() {
 // ══════════════════════════════════════════════════
 async function sendBackupEmail() {
   console.log('sendBackupEmail called');
-  const backup = {
-    timestamp: new Date().toISOString(),
-    data: clients,
-    appointments: appointments,
-    version: '2.1'
-  };
+  const backup = buildBackupObject();
   const dateStamp = localDateStr(new Date());
   const fileName = `backup-serwis-kotlow-${dateStamp}.json`;
   const ok = await shareGeneratedFile(fileName, JSON.stringify(backup, null, 2), 'Zapisz / wyślij backup');
@@ -4903,24 +4907,14 @@ function deleteService(clientId, serviceId) {
 // UTWÓRZ BACKUP (lokalnie)
 // ══════════════════════════════════════════════════
 function createNewBackup() {
-  const backup = {
-    timestamp: new Date().toISOString(),
-    data: clients,
-    appointments: appointments,
-    version: '2.1'
-  };
+  const backup = buildBackupObject();
   localStorage.setItem('backup_' + Date.now(), JSON.stringify(backup));
   showToast('Backup utworzony lokalnie!');
 }
 
 function copyBackupToClipboard() {
   console.log('copyBackupToClipboard called');
-  const backup = {
-    timestamp: new Date().toISOString(),
-    data: clients,
-    appointments: appointments,
-    version: '2.1'
-  };
+  const backup = buildBackupObject();
   const backupText = JSON.stringify(backup, null, 2);
   
   // Metoda 1: navigator.clipboard (nowoczesne przeglądarki)
@@ -4961,12 +4955,7 @@ function copyViaTextarea(text) {
 }
 
 function createBackup() {
-  const backup = {
-    timestamp: new Date().toISOString(),
-    data: clients,
-    appointments: appointments,
-    version: '2.1'
-  };
+  const backup = buildBackupObject();
   const a = document.createElement('a');
   a.href = 'data:application/json,' + JSON.stringify(backup, null, 2);
   a.download = `backup_${localDateStr(new Date())}.json`;
@@ -5042,19 +5031,49 @@ function importBackup(input) {
           });
           saveAppointments();
         }
-        
+
+        // Scal magazyn części (po numerze katalogowym - dodaj nowe, nie nadpisuj istniejących ilości)
+        let partsAdded = 0;
+        if (Array.isArray(backup.magazyn) && typeof magazyn !== 'undefined') {
+          backup.magazyn.forEach(importedPart => {
+            if (!importedPart.number) return;
+            const exists = magazyn.find(p => p.number === importedPart.number);
+            if (!exists) {
+              if (!importedPart.id) importedPart.id = genId();
+              magazyn.push(importedPart);
+              partsAdded++;
+            }
+          });
+          if (partsAdded > 0) saveMagazyn();
+        }
+        if (Array.isArray(backup.magazynHistoria) && typeof magazynHistoria !== 'undefined') {
+          const existingHistIds = new Set(magazynHistoria.map(h => h.id));
+          backup.magazynHistoria.forEach(h => {
+            if (h.id && !existingHistIds.has(h.id)) magazynHistoria.push(h);
+          });
+          saveMagazynHistoria();
+        }
+        // Dane firmy i zalecenia - przywracamy tylko jeśli u nas jeszcze puste (nie nadpisujemy świeżo wpisanych)
+        if (backup.companyInfo && Object.keys(backup.companyInfo).length && !localStorage.getItem('company_info')) {
+          localStorage.setItem('company_info', JSON.stringify(backup.companyInfo));
+        }
+        if (Array.isArray(backup.recommendations) && backup.recommendations.length && !localStorage.getItem('standard_recommendations')) {
+          localStorage.setItem('standard_recommendations', JSON.stringify(backup.recommendations));
+        }
+
         save();
         renderClients();
         if (document.getElementById('wizCalGrid')) renderWizCalendar();
         if (document.getElementById('calGrid')) renderCalendar();
         const apptMsg = (apptAdded || apptUpdated) ? ` + wizyty: ${apptAdded} nowych, ${apptUpdated} zaktualizowanych` : ' (brak wizyt w tym backupie)';
+        const partsMsg = partsAdded > 0 ? ` + magazyn: ${partsAdded} nowych części` : '';
         const msg = added > 0 && updated > 0 
-          ? `✅ Dodano ${added}, Zaktualizowano ${updated}!${apptMsg}`
+          ? `✅ Dodano ${added}, Zaktualizowano ${updated}!${apptMsg}${partsMsg}`
           : added > 0 
-          ? `✅ Dodano ${added} klientów!${apptMsg}`
+          ? `✅ Dodano ${added} klientów!${apptMsg}${partsMsg}`
           : updated > 0
-          ? `✅ Zaktualizowano ${updated} klientów!${apptMsg}`
-          : `✅ Synchronizacja gotowa!${apptMsg}`;
+          ? `✅ Zaktualizowano ${updated} klientów!${apptMsg}${partsMsg}`
+          : `✅ Synchronizacja gotowa!${apptMsg}${partsMsg}`;
         showToast(msg);
         input.value = '';
       } else {
