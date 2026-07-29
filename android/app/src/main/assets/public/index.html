@@ -30,11 +30,62 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   position:fixed;top:0;left:0;right:0;z-index:100;
   background:rgba(15,17,23,0.95);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
-  display:flex;align-items:center;
+  display:flex;align-items:center;justify-content:center;
   padding:14px 16px;
 }
-.nav-logo{font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-.02em}
+/* ══ SPLASH SCREEN ══ */
+#splashScreen{
+  position:fixed;inset:0;z-index:10000;
+  background:radial-gradient(circle at center, #1a1420 0%, var(--bg) 70%);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  animation:splashOut .4s ease-in 1.6s forwards;
+}
+.splash-rays{
+  position:absolute;width:220vmax;height:220vmax;
+  background:repeating-conic-gradient(from 0deg, var(--accent) 0deg 4deg, transparent 4deg 18deg);
+  opacity:.16;
+  animation:splashSpin 6s linear infinite;
+}
+.splash-frame{
+  position:relative;z-index:1;
+  border:2px solid var(--accent);border-radius:24px;
+  padding:34px 46px;
+  background:rgba(15,17,23,0.55);
+  backdrop-filter:blur(6px);
+  box-shadow:0 0 50px rgba(249,115,22,0.35);
+  animation:splashPop 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.splash-text{
+  font-size:44px;font-weight:800;letter-spacing:-.02em;
+  color:var(--accent);white-space:nowrap;
+}
+.splash-text span{color:var(--text)}
+@keyframes splashSpin{
+  0%{transform:rotate(0deg)}
+  100%{transform:rotate(360deg)}
+}
+@keyframes splashPop{
+  0%{opacity:0;transform:scale(.5)}
+  60%{opacity:1;transform:scale(1.08)}
+  100%{opacity:1;transform:scale(1)}
+}
+@keyframes splashOut{
+  0%{opacity:1;visibility:visible}
+  99%{opacity:0;visibility:visible}
+  100%{opacity:0;visibility:hidden;pointer-events:none}
+}
+
+.nav-logo{
+  font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-.02em;
+  animation:logoIntro .7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 .nav-logo span{color:var(--text)}
+@keyframes logoIntro{
+  0%{opacity:0;transform:scale(.6) translateY(10px)}
+  60%{opacity:1;transform:scale(1.08) translateY(0)}
+  100%{opacity:1;transform:scale(1) translateY(0)}
+}
 
 .bottom-nav{
   position:fixed;bottom:0;left:0;right:0;z-index:100;
@@ -1119,6 +1170,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
 </head>
 <body>
 
+<!-- ══ EKRAN STARTOWY (SPLASH) ══ -->
+<div id="splashScreen">
+  <div class="splash-rays"></div>
+  <div class="splash-frame">
+    <div class="splash-text">🔥 Serwis<span>Pro</span></div>
+  </div>
+</div>
+
 <!-- NAV -->
 <nav class="nav">
   <div class="nav-logo">🔥 Serwis<span>Pro</span></div>
@@ -1168,8 +1227,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
 <!-- ══ SEKCJA: PULPIT ══ -->
 <div class="section active" id="sec-pulpit">
-  <div id="pulpitGreeting" style="font-size:22px;font-weight:800;margin-bottom:4px"></div>
-  <div style="font-size:13px;color:var(--muted);margin-bottom:18px" id="pulpitDate"></div>
+  <div id="pulpitGreeting" style="font-size:34px;font-weight:800;margin-bottom:6px;text-align:center"></div>
+  <div style="font-size:19px;font-weight:600;color:var(--text);margin-bottom:18px;text-align:center" id="pulpitDate"></div>
 
   <div id="pulpitBackupReminder"></div>
 
@@ -1483,7 +1542,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-63 (Zlecenia: widok Dzień otwiera profil klienta zamiast edycji)
+    Wersja: 2026-07-12-67 (pełnoekranowy ekran startowy z promieniami, 2 sekundy)
   </div>
 </div>
 
@@ -2644,7 +2703,8 @@ function renderPulpit() {
 
   const dniTyg = ['Niedziela','Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota'];
   const miesiace = ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'];
-  document.getElementById('pulpitDate').textContent = `${dniTyg[now.getDay()]}, ${now.getDate()} ${miesiace[now.getMonth()]} ${now.getFullYear()}`;
+  const hh = String(now.getHours()).padStart(2, '0'), mm = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('pulpitDate').textContent = `${dniTyg[now.getDay()]}, ${now.getDate()} ${miesiace[now.getMonth()]} ${now.getFullYear()} · ${hh}:${mm}`;
 
   const lastBackup = localStorage.getItem('last_backup_date');
   const daysSinceBackup = lastBackup ? Math.floor((now - new Date(lastBackup)) / (1000 * 60 * 60 * 24)) : null;
@@ -6088,6 +6148,12 @@ initZlecenia();
 initDragHandlers();
 initBackButton();
 initAppLock();
+
+// Usuń ekran startowy z pamięci po zakończeniu animacji (2s)
+setTimeout(() => {
+  const splash = document.getElementById('splashScreen');
+  if (splash) splash.remove();
+}, 2100);
 
 // Demo dane jeśli baza pusta
 if (!clients.length) {
