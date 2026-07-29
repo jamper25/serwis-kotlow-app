@@ -2,6 +2,7 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme') || 'dark');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Serwis Kotłów</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -22,6 +23,20 @@
   --muted:#64748b;
   --font:'Outfit',sans-serif;
   --mono:'JetBrains Mono',monospace;
+}
+:root[data-theme="light"]{
+  --bg:#f8fafc;
+  --surface:#ffffff;
+  --surface2:#f1f5f9;
+  --border:#e2e8f0;
+  --accent:#ea580c;
+  --accent2:#f97316;
+  --blue:#2563eb;
+  --green:#16a34a;
+  --red:#dc2626;
+  --amber:#d97706;
+  --text:#0f172a;
+  --muted:#64748b;
 }
 html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
 
@@ -1433,6 +1448,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div class="sms-card">
+    <div class="sms-title">🎨 Wygląd</div>
+    <div class="sms-desc">Wybierz kolorystykę aplikacji.</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="filter-btn" id="themeDarkBtn" onclick="setTheme('dark')" style="flex:1;text-align:center">🌙 Ciemny</button>
+      <button class="filter-btn" id="themeLightBtn" onclick="setTheme('light')" style="flex:1;text-align:center">☀️ Jasny</button>
+    </div>
+  </div>
+
+  <div class="sms-card">
     <div class="sms-title">🏢 Dane firmy (do protokołu)</div>
     <div class="sms-desc">Te dane pojawią się w nagłówku generowanego protokołu serwisowego.</div>
     <div class="form-group" style="margin-top:8px">
@@ -1542,7 +1566,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-67 (pełnoekranowy ekran startowy z promieniami, 2 sekundy)
+    Wersja: 2026-07-12-68 (przełącznik motywu: ciemny / jasny)
   </div>
 </div>
 
@@ -2400,7 +2424,7 @@ function showTab(tab) {
   if (tab === 'kalendarz') renderCalendar();
   if (tab === 'wizyty') { renderWizCalendar(); renderWizGrid(); }
   if (tab === 'pulpit') renderPulpit();
-  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); loadGroupingRadiusUI(); loadCompanyInfoUI(); renderRecommendationsList(); }
+  if (tab === 'ustawienia') { renderStats(); loadNotifSettings(); updatePinToggleUI(); loadGroupingRadiusUI(); loadCompanyInfoUI(); renderRecommendationsList(); loadThemeUI(); }
   if (tab === 'klienci') renderClients();
   if (tab === 'zlecenia') renderZlecenia();
   if (tab === 'magazyn') renderMagazyn();
@@ -5560,6 +5584,20 @@ function deleteRecommendation(idx) {
   list.splice(idx, 1);
   localStorage.setItem('standard_recommendations', JSON.stringify(list));
   renderRecommendationsList();
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('app_theme', theme);
+  loadThemeUI();
+}
+
+function loadThemeUI() {
+  const theme = localStorage.getItem('app_theme') || 'dark';
+  const darkBtn = document.getElementById('themeDarkBtn');
+  const lightBtn = document.getElementById('themeLightBtn');
+  if (darkBtn) darkBtn.classList.toggle('active', theme === 'dark');
+  if (lightBtn) lightBtn.classList.toggle('active', theme === 'light');
 }
 
 function saveCompanyInfo() {
