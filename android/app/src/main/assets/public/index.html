@@ -114,8 +114,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   padding:6px 2px;border:none;background:transparent;color:var(--muted);
   font-family:var(--font);cursor:pointer;border-radius:10px;transition:color .15s;
 }
-.bn-item .bn-icon{font-size:21px;line-height:1}
-.bn-item .bn-label{font-size:10px;font-weight:700}
+.bn-item .bn-icon{font-size:24px;line-height:1}
+.bn-item .bn-label{font-size:11px;font-weight:700}
 .bn-item.active{color:var(--accent)}
 
 /* ── CONTENT ── */
@@ -1445,6 +1445,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="sms-title">🔄 Automatyczny zapis lokalny</div>
     <div class="sms-desc">Po każdej zmianie (nowy klient, serwis, wizyta) aplikacja sama zapisuje aktualną kopię danych do pliku w folderze <strong>Dokumenty/SerwisKotlow/</strong> na telefonie — bez Twojego udziału.</div>
     <div class="sms-desc" style="margin-top:8px">To NIE jest jeszcze kopia w chmurze — to tylko plik na telefonie. Żeby trafiał też do internetu (np. na wypadek zgubienia telefonu), skonfiguruj samodzielnie w aplikacji Dysk Google / Zdjęcia Google / Pliki Google automatyczną kopię zapasową folderu <strong>Dokumenty</strong> — zrobisz to raz, a dalej dzieje się to samo z siebie.</div>
+    <div class="sms-desc" style="margin-top:8px">Każdy wygenerowany protokół serwisowy trafia też automatycznie do <strong>Dokumenty/SerwisKotlow/Protokoly/</strong> — masz więc zawsze własną kopię, niezależnie od tego, komu i jak wysłałeś oryginał.</div>
   </div>
 
   <div class="sms-card">
@@ -1566,7 +1567,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-69 (backup teraz obejmuje magazyn, dane firmy i zalecenia)
+    Wersja: 2026-07-12-70 (większy dolny pasek nawigacji + auto-kopia protokołów)
   </div>
 </div>
 
@@ -4757,9 +4758,28 @@ async function confirmGenerateProtocol() {
   const base64 = dataUrl.split(',')[1];
   const fileName = `protokol-${(c.name || 'klient').replace(/[^a-z0-9]/gi, '_')}-${s.date}.png`;
 
+  saveProtocolCopyLocally(fileName, base64);
+
   closeModal('modalProtocolGenerate');
   const ok = await shareBinaryFile(fileName, base64, 'Wyślij protokół klientowi');
   if (ok) showToast('✅ Protokół gotowy do wysłania!');
+}
+
+async function saveProtocolCopyLocally(fileName, base64) {
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (!plugins || !plugins.Filesystem) return; // przeglądarka na komputerze - pomijamy po cichu
+  const { Filesystem } = plugins;
+  try {
+    await Filesystem.writeFile({
+      path: `SerwisKotlow/Protokoly/${fileName}`,
+      data: base64,
+      directory: 'DOCUMENTS',
+      recursive: true
+    });
+    console.log('Kopia protokołu zapisana do Dokumenty/SerwisKotlow/Protokoly/');
+  } catch (e) {
+    console.log('Zapis kopii protokołu error', e);
+  }
 }
 
 function editService(clientId, serviceId) {
