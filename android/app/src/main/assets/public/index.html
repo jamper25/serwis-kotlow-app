@@ -1281,10 +1281,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="filter-btn" data-filter="overdue" onclick="setFilter('overdue',this)">⚠ Przeterminowani</button>
     <button class="filter-btn" data-filter="soon" onclick="setFilter('soon',this)">🕐 Wkrótce</button>
     <button class="filter-btn" data-filter="ok" onclick="setFilter('ok',this)">✓ OK</button>
+    <button class="filter-btn" data-filter="toschedule" onclick="setFilter('toschedule',this)">📌 Do umówienia</button>
   </div>
-  <button class="io-btn" onclick="exportClientsWithoutPhone()" style="margin-bottom:14px;width:100%;background:var(--blue)">
-    <span class="io-icon">📋</span> Klienci bez telefonu (CSV)
-  </button>
   <div class="client-list" id="clientList"></div>
 </div>
 
@@ -1477,6 +1475,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div class="sms-card">
+    <div class="sms-title">📋 Klienci bez telefonu</div>
+    <div class="sms-desc">Eksport listy klientów, u których brakuje numeru telefonu (do CSV).</div>
+    <button class="io-btn" onclick="exportClientsWithoutPhone()" style="margin-top:8px;width:100%;background:var(--blue)">
+      <span class="io-icon">📋</span> Eksportuj (CSV)
+    </button>
+  </div>
+
+  <div class="sms-card">
     <button type="button" class="proto-btn" onclick="toggleCompanyInfoSection()" style="width:100%;justify-content:space-between;padding:10px 14px;margin-bottom:0">
       <span style="font-size:15px;font-weight:700">🏢 Dane firmy (do protokołu)</span>
       <span id="companyInfoToggleArrow">▼</span>
@@ -1599,7 +1605,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-80 (z formularza wizyty: zapisz i od razu dodaj serwis klientowi)
+    Wersja: 2026-07-12-81 (naprawa daty ostatniego serwisu, filtr "Do umówienia", CSV przeniesiony do Ustawień)
   </div>
 </div>
 
@@ -3256,6 +3262,7 @@ function renderClients() {
       (c.phone||'').includes(q);
     if (!match) return false;
     if (currentFilter === 'all') return true;
+    if (currentFilter === 'toschedule') return !!c.needsScheduling;
     return getStatus(c) === currentFilter;
   });
 
@@ -3333,6 +3340,11 @@ function showDetail(id) {
       <button class="action-btn edit" onclick="openEditClient('${c.id}')">✏️ Edytuj</button>
       <button class="action-btn service" onclick="openAddService('${c.id}')">🔧 Serwis</button>
       <button class="action-btn" style="border-color:var(--red)44;color:var(--red);background:var(--red)11" onclick="deleteClientConfirm('${c.id}')">🗑 Usuń</button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="toggleNeedsScheduling('${c.id}')">
+      <div class="toggle ${c.needsScheduling ? 'on' : ''}" id="needsSchedulingToggle"></div>
+      <div style="font-size:13px">📌 Do umówienia</div>
     </div>
 
     ${st === 'overdue' ? `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="toggleSmsReminderSent('${c.id}')">
@@ -3624,6 +3636,15 @@ function setDeviceOk(ok) {
   document.getElementById('sDeviceNotOkBtn').classList.toggle('active', !ok);
 }
 
+// Ostatni serwis to zawsze NAJNOWSZA data ze wszystkich wpisów, nie data ostatnio edytowanego wpisu
+function recalcLastService(client) {
+  if (!client.services || !client.services.length) {
+    client.lastService = '';
+    return;
+  }
+  client.lastService = client.services.reduce((max, s) => (s.date > max ? s.date : max), client.services[0].date);
+}
+
 function saveService() {
   const date = document.getElementById('sDate').value;
   if (!date) { showToast('❌ Wybierz datę!', true); return; }
@@ -3660,7 +3681,7 @@ function saveService() {
   if (selectedServiceParts.length) applyPartsUsage(selectedServiceParts, c.name);
   const nextService = document.getElementById('sNextService').value;
   if (nextService) { c.nextService = nextService; }
-  c.lastService = date;
+  recalcLastService(c);
   save();
   currentPhotoData = null;
   removePhoto();
@@ -5393,6 +5414,7 @@ function updateService(clientId, serviceId) {
     partsUsed: selectedServiceParts.slice(),
   };
   if (selectedServiceParts.length) applyPartsUsage(selectedServiceParts, c.name);
+  recalcLastService(c);
   
   save();
   currentPhotoData = null;
@@ -5432,6 +5454,7 @@ function deleteService(clientId, serviceId) {
   const removedService = c.services[sIdx];
   if (removedService.partsUsed && removedService.partsUsed.length) reversePartsUsage(removedService.partsUsed);
   c.services.splice(sIdx, 1);
+  recalcLastService(c);
   save();
   
   currentPhotoData = null;
@@ -6594,6 +6617,14 @@ function navigateToClient(id) {
   if (!addr) { showToast('Brak adresu', true); return; }
   const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
   window.open(url, '_system');
+}
+
+function toggleNeedsScheduling(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  c.needsScheduling = !c.needsScheduling;
+  save();
+  showDetail(id);
 }
 
 function toggleSmsReminderSent(id) {
