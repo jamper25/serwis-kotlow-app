@@ -1563,8 +1563,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div class="sms-card">
     <div class="sms-title">💬 Szablon SMS do klienta</div>
-    <div class="sms-desc">Treść SMS wysyłanego ręcznie z karty klienta. Użyj {imie}, {data}, {model} jako zmiennych.</div>
-    <textarea class="sms-template-input" id="smsTemplate">Dzień dobry {imie}, przypominamy o przeglądzie kotła {model}, ostatnia wizyta: {data}. Prosimy o kontakt: tel. 508206638 w celu ustalenia terminu wizyty. Pozdrawiam, Serwis Kotłów Adam Baca.</textarea>
+    <div class="sms-desc">Treść SMS wysyłanego ręcznie z karty klienta. Użyj {imie}, {nazwisko}, {model}, {data}, {dni} jako zmiennych.</div>
+    <textarea class="sms-template-input" id="smsTemplate">Dzień dobry {imie} {nazwisko}, przypominamy o przeglądzie kotła {model}. Ostatni przegląd: {data} ({dni} dni temu). Prosimy o kontakt: tel. 508206638 w celu ustalenia terminu wizyty. Pozdrawiam, Serwis Kotłów Adam Baca.</textarea>
     <button class="io-btn" onclick="saveSmsTemplate()" style="margin-top:8px">
       <span class="io-icon">💾</span> Zapisz szablon
     </button>
@@ -1599,7 +1599,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-78 (protokół generowany jako prawdziwy PDF, nie PNG)
+    Wersja: 2026-07-12-80 (z formularza wizyty: zapisz i od razu dodaj serwis klientowi)
   </div>
 </div>
 
@@ -1955,6 +1955,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
     <button class="btn btn-primary" onclick="saveAppointment()">💾 Zapisz wizytę</button>
+    <button class="btn btn-secondary" onclick="saveAppointmentAndAddService()" style="border-color:var(--accent);color:var(--accent)">🔧 Zapisz i dodaj serwis dla klienta</button>
     <button class="btn btn-danger" id="apDeleteBtn" onclick="deleteAppointment()" style="display:none">🗑 Usuń wizytę</button>
     <button class="btn btn-secondary" onclick="closeModal('modalAppointment')">Anuluj</button>
   </div>
@@ -4106,6 +4107,20 @@ function saveAppointment() {
   selectedWizDay = date;
   renderWizCalendar();
   renderWizGrid();
+}
+
+function saveAppointmentAndAddService() {
+  if (!selectedApClientId) {
+    showToast('Wybierz klienta z listy, żeby dodać dla niego serwis', true);
+    return;
+  }
+  const { date } = editingAppointment;
+  const note = document.getElementById('apNote').value.trim();
+  const clientId = selectedApClientId;
+  saveAppointment();
+  openAddService(clientId);
+  document.getElementById('sDate').value = date;
+  if (note) document.getElementById('sDesc').value = note;
 }
 
 function deleteAppointment() {
@@ -6594,15 +6609,23 @@ function sendSMS(id) {
   const c = clients.find(x => x.id === id);
   if (!c || !c.phone) return;
   const template = localStorage.getItem('sms_template') ||
-    'Dzień dobry {imie}, przypominamy o przeglądzie kotła {model}, ostatnia wizyta: {data}. Prosimy o kontakt: tel. 508206638 w celu ustalenia terminu wizyty. Pozdrawiam, Serwis Kotłów Adam Baca.';
-  const imie = c.name.split(' ')[0];
+    'Dzień dobry {imie} {nazwisko}, przypominamy o przeglądzie kotła {model}. Ostatni przegląd: {data} ({dni} dni temu). Prosimy o kontakt: tel. 508206638 w celu ustalenia terminu wizyty. Pozdrawiam, Serwis Kotłów Adam Baca.';
+  const nameParts = c.name.trim().split(' ');
+  const imie = nameParts[0] || '';
+  const nazwisko = nameParts.slice(1).join(' ') || '';
   const model = c.boilerModel || 'kotła';
   const data = c.lastService ? formatDate(c.lastService) : 'brak danych';
+  let dni = 'brak danych';
+  if (c.lastService) {
+    const diffMs = new Date().setHours(0,0,0,0) - new Date(c.lastService).setHours(0,0,0,0);
+    dni = String(Math.max(0, Math.round(diffMs / 86400000)));
+  }
   const msg = template
     .replace(/{imie}/g, imie)
+    .replace(/{nazwisko}/g, nazwisko)
     .replace(/{model}/g, model)
     .replace(/{data}/g, data)
-    .replace(/{nazwisko}/g, c.name);
+    .replace(/{dni}/g, dni);
   const phone = c.phone.replace(/\s/g, '');
   window.location = `sms:${phone}?body=${encodeURIComponent(msg)}`;
 }
