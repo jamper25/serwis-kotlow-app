@@ -1282,6 +1282,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="filter-btn" data-filter="soon" onclick="setFilter('soon',this)">🕐 Wkrótce</button>
     <button class="filter-btn" data-filter="ok" onclick="setFilter('ok',this)">✓ OK</button>
   </div>
+  <button class="io-btn" onclick="exportClientsWithoutPhone()" style="margin-bottom:14px;width:100%;background:var(--blue)">
+    <span class="io-icon">📋</span> Klienci bez telefonu (CSV)
+  </button>
   <div class="client-list" id="clientList"></div>
 </div>
 
@@ -1416,7 +1419,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="sms-title">🔔 Powiadomienia o terminach</div>
     <div class="sms-desc">Telefon wyświetli powiadomienie X dni przed planowanym serwisem. Wymaga zgody na powiadomienia.</div>
     <div class="sms-setting">
-      <label>Włącz powiadomienia</label>
+      <label>Powiadomienia o wizytach</label>
       <div class="toggle-wrap">
         <div class="toggle" id="notifToggle" onclick="toggleNotifications()"></div>
         <span id="notifStatus" style="font-size:12px;color:var(--muted)">Wyłączone</span>
@@ -1426,6 +1429,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <label>Dni przed terminem</label>
       <input class="sms-days-input" id="notifDays" type="number" value="7" min="1" max="60" onchange="saveNotifSettings()">
     </div>
+    <div class="sms-setting" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <label>Powiadomienia o przeterminowanych</label>
+      <div class="toggle-wrap">
+        <div class="toggle" id="notifOverdueToggle" onclick="toggleOverdueNotifications()"></div>
+        <span id="notifOverdueStatus" style="font-size:12px;color:var(--muted)">Wyłączone</span>
+      </div>
+    </div>
+    <div class="sms-desc" style="margin-top:4px">Codzienne przypomnienie, ile masz już przeterminowanych klientów.</div>
     <button class="io-btn" onclick="scheduleAllNotifications()" style="margin-top:4px">
       <span class="io-icon">🔄</span> Zaplanuj powiadomienia teraz
     </button>
@@ -1466,37 +1477,50 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div class="sms-card">
-    <div class="sms-title">🏢 Dane firmy (do protokołu)</div>
-    <div class="sms-desc">Te dane pojawią się w nagłówku generowanego protokołu serwisowego.</div>
-    <div class="form-group" style="margin-top:8px">
-      <label class="form-label">Nazwa firmy</label>
-      <input class="form-input" id="companyName" placeholder="np. INSTAL-SERWIS Adam Baca">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Adres</label>
-      <input class="form-input" id="companyAddress" placeholder="np. ul. Przykładowa 5, 00-000 Miasto">
-    </div>
-    <div class="form-row">
+    <button type="button" class="proto-btn" onclick="toggleCompanyInfoSection()" style="width:100%;justify-content:space-between;padding:10px 14px;margin-bottom:0">
+      <span style="font-size:15px;font-weight:700">🏢 Dane firmy (do protokołu)</span>
+      <span id="companyInfoToggleArrow">▼</span>
+    </button>
+    <div id="companyInfoSectionBody" style="display:none;margin-top:12px">
+      <div class="sms-desc" style="margin-bottom:8px">Te dane pojawią się w nagłówku generowanego protokołu serwisowego.</div>
       <div class="form-group">
-        <label class="form-label">NIP</label>
-        <input class="form-input" id="companyNip" placeholder="0000000000">
+        <label class="form-label">Nazwa firmy</label>
+        <input class="form-input" id="companyName" placeholder="np. INSTAL-SERWIS Adam Baca">
       </div>
       <div class="form-group">
-        <label class="form-label">Telefon</label>
-        <input class="form-input" id="companyPhone" placeholder="500 000 000">
+        <label class="form-label">Adres</label>
+        <input class="form-input" id="companyAddress" placeholder="np. ul. Przykładowa 5, 00-000 Miasto">
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">NIP</label>
+          <input class="form-input" id="companyNip" placeholder="0000000000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefon</label>
+          <input class="form-input" id="companyPhone" placeholder="500 000 000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input class="form-input" id="companyEmail" placeholder="kontakt@firma.pl">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Strona www</label>
+          <input class="form-input" id="companyWww" placeholder="www.firma.pl">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCompanyInfo()">💾 Zapisz dane firmy</button>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">E-mail</label>
-        <input class="form-input" id="companyEmail" placeholder="kontakt@firma.pl">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Strona www</label>
-        <input class="form-input" id="companyWww" placeholder="www.firma.pl">
-      </div>
-    </div>
-    <button class="btn btn-primary" onclick="saveCompanyInfo()">💾 Zapisz dane firmy</button>
+  </div>
+
+  <div class="sms-card">
+    <div class="sms-title">📇 Klienci bez numeru telefonu</div>
+    <div class="sms-desc">Eksportuj listę klientów, u których nie ma zapisanego żadnego numeru telefonu (przydatne do uzupełnienia braków w bazie).</div>
+    <button class="io-btn" onclick="exportClientsWithoutPhone()" style="margin-top:8px">
+      <span class="io-icon">📤</span> Eksportuj brakujące telefony (CSV)
+    </button>
   </div>
 
   <div class="sms-card">
@@ -1575,7 +1599,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-75 (nagłówki rozwijane jako przyciski jak Aparat/Galeria, lista jak poprzednio)
+    Wersja: 2026-07-12-77 (dane firmy rozwijane + eksport klientów bez telefonu)
   </div>
 </div>
 
@@ -2232,7 +2256,13 @@ let editingAppointment = null;
 const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 18; // ostatni slot zaczyna się o 17:00 (17-18)
 
-function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)); scheduleAutoBackup(); }
+function save() { localStorage.setItem('serwis_clients', JSON.stringify(clients)); scheduleAutoBackup(); scheduleNotifRefresh(); }
+
+let notifRefreshTimer = null;
+function scheduleNotifRefresh() {
+  if (notifRefreshTimer) clearTimeout(notifRefreshTimer);
+  notifRefreshTimer = setTimeout(autoRefreshNotifications, 4000);
+}
 function saveAppointments() { localStorage.setItem('serwis_appointments', JSON.stringify(appointments)); scheduleAutoBackup(); }
 
 // ══════════════════════════════════════════════════
@@ -5703,7 +5733,34 @@ function saveCompanyInfo() {
   showToast('✅ Dane firmy zapisane!');
 }
 
+let companyInfoExpanded = false;
+function toggleCompanyInfoSection() {
+  companyInfoExpanded = !companyInfoExpanded;
+  document.getElementById('companyInfoSectionBody').style.display = companyInfoExpanded ? '' : 'none';
+  document.getElementById('companyInfoToggleArrow').textContent = companyInfoExpanded ? '▲' : '▼';
+}
+
+function exportClientsWithoutPhone() {
+  const missing = clients.filter(c => !c.phone && !c.phone2);
+  if (!missing.length) {
+    showToast('✅ Wszyscy klienci mają zapisany telefon!');
+    return;
+  }
+  const headers = ['Imię i nazwisko', 'Ulica', 'Miasto', 'Model kotła', 'Email', 'Ostatni serwis', 'Uwagi'];
+  const rows = missing.map(c => [c.name, c.street || '', c.city || '', c.boilerModel || '', c.email || '', c.lastService || '', c.notes || '']
+    .map(v => `"${String(v).replace(/"/g, '""')}"`));
+  const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+  const dateStamp = localDateStr(new Date());
+  const fileName = `klienci-bez-telefonu-${dateStamp}.csv`;
+  shareGeneratedFile(fileName, '\ufeff' + csv, 'Zapisz / wyślij listę').then(ok => {
+    if (ok) showToast(`✅ Znaleziono ${missing.length} klientów bez telefonu!`);
+  });
+}
+
 function loadCompanyInfoUI() {
+  companyInfoExpanded = false;
+  document.getElementById('companyInfoSectionBody').style.display = 'none';
+  document.getElementById('companyInfoToggleArrow').textContent = '▼';
   const info = JSON.parse(localStorage.getItem('company_info') || '{}');
   document.getElementById('companyName').value = info.name || 'INSTAL-SERWIS Adam Baca';
   document.getElementById('companyAddress').value = info.address || 'ul. Chemików 5/80, 05-100 Nowy Dwór Mazowiecki';
@@ -6133,6 +6190,8 @@ function saveSmsTemplate() {
 // POWIADOMIENIA PUSH (natywne powiadomienia Androida przez Capacitor)
 // ══════════════════════════════════════════════════
 let notifEnabled = false;
+let notifOverdueEnabled = false;
+const OVERDUE_NOTIF_ID = 999999999;
 
 function getLocalNotifPlugin() {
   return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
@@ -6178,23 +6237,69 @@ async function toggleNotifications() {
   }
 }
 
+async function toggleOverdueNotifications() {
+  const plugin = getLocalNotifPlugin();
+  if (!plugin) {
+    showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
+    return;
+  }
+  if (!notifOverdueEnabled) {
+    try {
+      const perm = await plugin.requestPermissions();
+      if (perm.display === 'granted') {
+        notifOverdueEnabled = true;
+        updateNotifUI();
+        saveNotifSettings();
+        await scheduleAllNotifications();
+        showToast('Powiadomienia o przeterminowanych włączone!');
+      } else {
+        showToast('Brak zgody na powiadomienia', true);
+      }
+    } catch (e) {
+      console.log('Notif permission error', e);
+      showToast('Błąd uprawnień powiadomień', true);
+    }
+  } else {
+    notifOverdueEnabled = false;
+    updateNotifUI();
+    saveNotifSettings();
+    try { await plugin.cancel({ notifications: [{ id: OVERDUE_NOTIF_ID }] }); } catch(e) {}
+    showToast('Powiadomienia o przeterminowanych wyłączone');
+  }
+}
+
 function updateNotifUI() {
   const toggle = document.getElementById('notifToggle');
   const status = document.getElementById('notifStatus');
-  if (!toggle) return;
-  if (notifEnabled) {
-    toggle.classList.add('on');
-    status.textContent = 'Włączone';
-    status.style.color = 'var(--green)';
-  } else {
-    toggle.classList.remove('on');
-    status.textContent = 'Wyłączone';
-    status.style.color = 'var(--muted)';
+  if (toggle) {
+    if (notifEnabled) {
+      toggle.classList.add('on');
+      status.textContent = 'Włączone';
+      status.style.color = 'var(--green)';
+    } else {
+      toggle.classList.remove('on');
+      status.textContent = 'Wyłączone';
+      status.style.color = 'var(--muted)';
+    }
+  }
+  const overdueToggle = document.getElementById('notifOverdueToggle');
+  const overdueStatus = document.getElementById('notifOverdueStatus');
+  if (overdueToggle) {
+    if (notifOverdueEnabled) {
+      overdueToggle.classList.add('on');
+      overdueStatus.textContent = 'Włączone';
+      overdueStatus.style.color = 'var(--green)';
+    } else {
+      overdueToggle.classList.remove('on');
+      overdueStatus.textContent = 'Wyłączone';
+      overdueStatus.style.color = 'var(--muted)';
+    }
   }
 }
 
 function saveNotifSettings() {
   localStorage.setItem('notif_enabled', notifEnabled ? '1' : '0');
+  localStorage.setItem('notif_overdue_enabled', notifOverdueEnabled ? '1' : '0');
   localStorage.setItem('notif_days', document.getElementById('notifDays')?.value || '7');
 }
 
@@ -6208,6 +6313,7 @@ async function loadNotifSettings() {
     } catch (e) {}
   }
   notifEnabled = localStorage.getItem('notif_enabled') === '1' && granted;
+  notifOverdueEnabled = localStorage.getItem('notif_overdue_enabled') === '1' && granted;
   const days = localStorage.getItem('notif_days') || '7';
   const tmpl = localStorage.getItem('sms_template');
   const daysEl = document.getElementById('notifDays');
@@ -6223,8 +6329,8 @@ async function scheduleAllNotifications() {
     showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
     return;
   }
-  if (!notifEnabled) {
-    showToast('Włącz najpierw powiadomienia!', true);
+  if (!notifEnabled && !notifOverdueEnabled) {
+    showToast('Włącz najpierw przynajmniej jeden rodzaj powiadomień!', true);
     return;
   }
   // Usuń wcześniej zaplanowane, żeby uniknąć duplikatów
@@ -6235,25 +6341,42 @@ async function scheduleAllNotifications() {
     }
   } catch (e) { console.log('cancel pending error', e); }
 
-  const days = parseInt(localStorage.getItem('notif_days') || '7');
-  const now = new Date();
   const toSchedule = [];
 
-  clients.forEach(c => {
-    if (!c.nextService) return;
-    const next = new Date(c.nextService);
-    const notifDate = new Date(next);
-    notifDate.setDate(notifDate.getDate() - days);
-    notifDate.setHours(9, 0, 0, 0); // powiadomienie o 9:00 rano
-    if (notifDate.getTime() > now.getTime()) {
+  if (notifEnabled) {
+    const days = parseInt(localStorage.getItem('notif_days') || '7');
+    const now = new Date();
+    clients.forEach(c => {
+      if (!c.nextService) return;
+      const next = new Date(c.nextService);
+      const notifDate = new Date(next);
+      notifDate.setDate(notifDate.getDate() - days);
+      notifDate.setHours(9, 0, 0, 0); // powiadomienie o 9:00 rano
+      if (notifDate.getTime() > now.getTime()) {
+        toSchedule.push({
+          id: hashToInt(c.id),
+          title: `🔥 Serwis za ${days} dni`,
+          body: `${c.name} · ${c.boilerModel || 'kocioł'} · ${formatDate(c.nextService)}`,
+          schedule: { at: notifDate },
+        });
+      }
+    });
+  }
+
+  if (notifOverdueEnabled) {
+    const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
+    if (overdueCount > 0) {
+      const tomorrow9am = new Date();
+      tomorrow9am.setDate(tomorrow9am.getDate() + 1);
+      tomorrow9am.setHours(9, 0, 0, 0);
       toSchedule.push({
-        id: hashToInt(c.id),
-        title: `🔥 Serwis za ${days} dni`,
-        body: `${c.name} · ${c.boilerModel || 'kocioł'} · ${formatDate(c.nextService)}`,
-        schedule: { at: notifDate },
+        id: OVERDUE_NOTIF_ID,
+        title: '⚠️ Przeterminowani klienci',
+        body: `Masz ${overdueCount} ${overdueCount === 1 ? 'klienta' : 'klientów'} z przeterminowanym serwisem - sprawdź listę`,
+        schedule: { at: tomorrow9am, every: 'day' },
       });
     }
-  });
+  }
 
   if (toSchedule.length) {
     try {
@@ -6265,6 +6388,57 @@ async function scheduleAllNotifications() {
     }
   }
   showToast(`Zaplanowano ${toSchedule.length} powiadomień!`);
+}
+
+// Cicha wersja - wywoływana automatycznie po każdej zmianie danych, bez komunikatów
+async function autoRefreshNotifications() {
+  const plugin = getLocalNotifPlugin();
+  if (!plugin) return;
+  if (!notifEnabled && !notifOverdueEnabled) return;
+  try {
+    const pending = await plugin.getPending();
+    if (pending.notifications.length) {
+      await plugin.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    }
+    const toSchedule = [];
+    if (notifEnabled) {
+      const days = parseInt(localStorage.getItem('notif_days') || '7');
+      const now = new Date();
+      clients.forEach(c => {
+        if (!c.nextService) return;
+        const next = new Date(c.nextService);
+        const notifDate = new Date(next);
+        notifDate.setDate(notifDate.getDate() - days);
+        notifDate.setHours(9, 0, 0, 0);
+        if (notifDate.getTime() > now.getTime()) {
+          toSchedule.push({
+            id: hashToInt(c.id),
+            title: `🔥 Serwis za ${days} dni`,
+            body: `${c.name} · ${c.boilerModel || 'kocioł'} · ${formatDate(c.nextService)}`,
+            schedule: { at: notifDate },
+          });
+        }
+      });
+    }
+    if (notifOverdueEnabled) {
+      const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
+      if (overdueCount > 0) {
+        const tomorrow9am = new Date();
+        tomorrow9am.setDate(tomorrow9am.getDate() + 1);
+        tomorrow9am.setHours(9, 0, 0, 0);
+        toSchedule.push({
+          id: OVERDUE_NOTIF_ID,
+          title: '⚠️ Przeterminowani klienci',
+          body: `Masz ${overdueCount} ${overdueCount === 1 ? 'klienta' : 'klientów'} z przeterminowanym serwisem - sprawdź listę`,
+          schedule: { at: tomorrow9am, every: 'day' },
+        });
+      }
+    }
+    if (toSchedule.length) await plugin.schedule({ notifications: toSchedule });
+    console.log('Powiadomienia odświeżone automatycznie:', toSchedule.length);
+  } catch (e) {
+    console.log('autoRefreshNotifications error', e);
+  }
 }
 
 // ══════════════════════════════════════════════════
