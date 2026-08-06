@@ -1438,6 +1438,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="io-btn" onclick="scheduleAllNotifications()" style="margin-top:4px">
       <span class="io-icon">🔄</span> Zaplanuj powiadomienia teraz
     </button>
+    <button class="io-btn" onclick="sendTestNotification()" style="margin-top:8px;background:var(--blue)">
+      <span class="io-icon">🔔</span> Wyślij testowe powiadomienie (za 10 sek.)
+    </button>
   </div>
 
   <div class="sms-card">
@@ -1605,7 +1608,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-82 (jednorazowa naprawa dat u wszystkich klientów + wyszukiwanie części ignoruje spacje)
+    Wersja: 2026-07-12-83 (przycisk testowego powiadomienia - diagnostyka)
   </div>
 </div>
 
@@ -6824,6 +6827,35 @@ async function loadNotifSettings() {
   const tmplEl = document.getElementById('smsTemplate');
   if (tmplEl && tmpl) tmplEl.value = tmpl;
   updateNotifUI();
+}
+
+async function sendTestNotification() {
+  const plugin = getLocalNotifPlugin();
+  if (!plugin) {
+    showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
+    return;
+  }
+  try {
+    const perm = await plugin.checkPermissions();
+    if (perm.display !== 'granted') {
+      showToast('Brak zgody na powiadomienia - włącz je najpierw w Ustawieniach telefonu', true);
+      return;
+    }
+    const testDate = new Date();
+    testDate.setSeconds(testDate.getSeconds() + 10);
+    await plugin.schedule({
+      notifications: [{
+        id: 123456789,
+        title: '🔥 Test powiadomienia',
+        body: 'Jeśli to widzisz - powiadomienia działają poprawnie na Twoim telefonie!',
+        schedule: { at: testDate },
+      }]
+    });
+    showToast('✅ Wysłane! Poczekaj ~10 sekund (możesz zablokować ekran)');
+  } catch (e) {
+    console.log('test notif error', e);
+    showToast('Błąd wysyłania testowego powiadomienia', true);
+  }
 }
 
 async function scheduleAllNotifications() {
