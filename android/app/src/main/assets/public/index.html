@@ -1608,7 +1608,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-84 (wymuszenie nowego builda - poprzedni się nie uruchomił)
+    Wersja: 2026-07-12-85 (protokół: czytelniejsze dane firmy w osobnej karcie)
   </div>
 </div>
 
@@ -5032,33 +5032,22 @@ async function confirmGenerateProtocol() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textBaseline = 'top';
 
-  // Nagłówek - gradient
-  const HEADER_H = 190;
+  // Nagłówek - gradient, tylko tytuł i logo
+  const HEADER_H = 100;
   const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H);
   grad.addColorStop(0, BLUE_L);
   grad.addColorStop(1, BLUE_D);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, HEADER_H);
 
-  const logoSize = 90;
+  const logoSize = 60;
   if (logoImg.complete && logoImg.naturalWidth) {
-    ctx.drawImage(logoImg, PAD, 50, logoSize, logoSize);
+    ctx.drawImage(logoImg, PAD, 20, logoSize, logoSize);
   }
   const textX = PAD + logoSize + 20;
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 26px sans-serif';
-  ctx.fillText('PROTOKÓŁ USŁUGI SERWISOWEJ', textX, 55);
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillStyle = '#dce6f5';
-  ctx.fillText(company.name, textX, 92);
-  ctx.font = '12px sans-serif';
-  ctx.fillStyle = '#c8d5eb';
-  let hy = 114;
-  if (company.address) { ctx.fillText(company.address, textX, hy); hy += 18; }
-  const contactLine = [company.nip ? `NIP: ${company.nip}` : '', company.phone ? `tel. ${company.phone}` : ''].filter(Boolean).join('   ·   ');
-  if (contactLine) { ctx.fillText(contactLine, textX, hy); hy += 18; }
-  const webLine = [company.email, company.www].filter(Boolean).join('   ·   ');
-  if (webLine) ctx.fillText(webLine, textX, hy);
+  ctx.fillText('PROTOKÓŁ USŁUGI SERWISOWEJ', textX, 32);
 
   let y = HEADER_H + 35;
 
@@ -5100,8 +5089,19 @@ async function confirmGenerateProtocol() {
     ctx.fillText(value || '—', x, yy + 15);
   }
 
+  // Dane firmy wykonującej usługę
+  const companyLines = [company.address, [company.nip ? `NIP: ${company.nip}` : '', company.phone ? `tel. ${company.phone}` : ''].filter(Boolean).join('   ·   '), [company.email, company.www].filter(Boolean).join('   ·   ')].filter(Boolean);
+  let innerY = card('WYKONAWCA USŁUGI', 55 + companyLines.length * 20, BLUE_D);
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = TXT_BLACK;
+  ctx.fillText(company.name || '—', PAD + 10, innerY);
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = TXT_GRAY;
+  let cy = innerY + 30;
+  companyLines.forEach(line => { ctx.fillText(line, PAD + 10, cy); cy += 20; });
+
   // Dane urządzenia
-  let innerY = card('DANE URZĄDZENIA', 110);
+  innerY = card('DANE URZĄDZENIA', 110);
   field('Nazwa urządzenia', c.boilerModel, PAD + 10, innerY);
   field('Fabryka', c.boilerFabryka, PAD + 10, innerY + 42);
   field('Kod FD', c.boilerFD, PAD + 250, innerY + 42);
