@@ -1608,7 +1608,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-85 (protokół: czytelniejsze dane firmy w osobnej karcie)
+    Wersja: 2026-07-12-86 (następny serwis liczony od daty serwisu, nie od dzisiaj)
   </div>
 </div>
 
@@ -1821,7 +1821,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div class="form-group">
     <label class="form-label">Data serwisu *</label>
-    <input class="form-input" id="sDate" type="date">
+    <input class="form-input" id="sDate" type="date" onchange="updateSuggestedNextService()">
   </div>
   <div class="form-group">
     <label class="form-label">Rodzaj</label>
@@ -3604,6 +3604,17 @@ function deleteClient() {
 // ══════════════════════════════════════════════════
 // SERWIS
 // ══════════════════════════════════════════════════
+// Przelicza podpowiedź "Następny serwis" na podstawie DATY SERWISU (nie dzisiejszej daty) + interwał klienta
+function updateSuggestedNextService() {
+  const c = clients.find(x => x.id === currentClientId);
+  if (!c || !c.interval) { document.getElementById('sNextService').value = ''; return; }
+  const dateVal = document.getElementById('sDate').value;
+  const base = dateVal ? new Date(dateVal) : new Date();
+  const next = new Date(base);
+  next.setMonth(next.getMonth() + parseInt(c.interval));
+  document.getElementById('sNextService').value = localDateStr(next);
+}
+
 function openAddService(id) {
   currentClientId = id;
   currentPhotoData = null;
@@ -3635,14 +3646,8 @@ function openAddService(id) {
     document.getElementById('sClientSearch').value = c.name;
     document.getElementById('sClientList').innerHTML = '';
     
-    // Ustaw następny serwis na podstawie interwału
-    if (c.interval) {
-      const next = new Date();
-      next.setMonth(next.getMonth() + parseInt(c.interval));
-      document.getElementById('sNextService').value = localDateStr(next);
-    } else {
-      document.getElementById('sNextService').value = '';
-    }
+    // Ustaw następny serwis na podstawie interwału - liczony od daty serwisu (nie od dzisiaj)
+    updateSuggestedNextService();
   }
   openModal('modalService');
 }
@@ -4159,6 +4164,7 @@ function saveAppointmentAndAddService() {
   saveAppointment();
   openAddService(clientId);
   document.getElementById('sDate').value = date;
+  updateSuggestedNextService();
   if (note) document.getElementById('sDesc').value = note;
 }
 
@@ -4653,7 +4659,7 @@ function filterServiceClients() {
   
   list.innerHTML = filtered.map(c => `
     <div style="padding:10px;background:var(--surface);border-radius:8px;margin-bottom:6px;cursor:pointer;border:2px solid ${currentClientId === c.id ? 'var(--green)' : 'var(--border)'};transition:all .2s" 
-      onclick="currentClientId='${c.id}';document.getElementById('sClientSearch').value='${c.name}';document.getElementById('sClientList').innerHTML='';showToast('✅ Wybrany: ${c.name}')">
+      onclick="currentClientId='${c.id}';document.getElementById('sClientSearch').value='${c.name}';document.getElementById('sClientList').innerHTML='';updateSuggestedNextService();showToast('✅ Wybrany: ${c.name}')">
       <div style="font-weight:600">${c.name}</div>
       <div style="font-size:11px;color:var(--muted)">${c.street || ''} ${c.zip || ''} ${c.city || ''} · ${c.phone || ''}</div>
     </div>
@@ -6500,6 +6506,7 @@ function getServicesOnDate(dateStr) {
 function openAddServiceForDate(dateStr) {
   openAddServiceFromCalendar();
   document.getElementById('sDate').value = dateStr;
+  updateSuggestedNextService();
 }
 
 function renderZlGrid() {
