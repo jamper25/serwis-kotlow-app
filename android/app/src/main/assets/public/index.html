@@ -1281,7 +1281,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="filter-btn" data-filter="overdue" onclick="setFilter('overdue',this)">⚠ Przeterminowani</button>
     <button class="filter-btn" data-filter="soon" onclick="setFilter('soon',this)">🕐 Wkrótce</button>
     <button class="filter-btn" data-filter="ok" onclick="setFilter('ok',this)">✓ OK</button>
-    <button class="filter-btn" data-filter="toschedule" onclick="setFilter('toschedule',this)">📌 Do umówienia</button>
   </div>
   <div class="client-list" id="clientList"></div>
 </div>
@@ -1366,9 +1365,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <div class="section" id="sec-wizyty">
   <div style="font-size:13px;color:var(--muted);margin-bottom:12px">📞 Klient dzwoni? Zaznacz dzień w kalendarzu albo przewiń siatkę, i kliknij wolną godzinę (8:00–18:00), żeby umówić wizytę.</div>
 
-  <button class="io-btn" onclick="showLocationGroups()" style="margin-bottom:14px;width:100%;background:var(--blue)">
-    <span class="io-icon">📍</span> Grupy klientów wg lokalizacji
-  </button>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="io-btn" onclick="showLocationGroups()" style="width:50%;background:var(--blue)">
+      <span class="io-icon">📍</span> Grupy wg lokalizacji
+    </button>
+    <button class="io-btn" onclick="openToScheduleModal()" style="width:50%;background:var(--accent)">
+      <span class="io-icon">📌</span> Do umówienia
+    </button>
+  </div>
 
   <div class="cal-header">
     <button class="cal-nav" onclick="wizCalPrev()">‹</button>
@@ -1608,7 +1612,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-86 (następny serwis liczony od daty serwisu, nie od dzisiaj)
+    Wersja: 2026-07-12-88 (Do umówienia: pełny formularz jak przy wizycie, bez statusów)
   </div>
 </div>
 
@@ -2099,6 +2103,37 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div id="locationMapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
   <div id="locationGroupsList"></div>
   <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalLocationGroups')">Zamknij</button>
+</div>
+</div>
+
+<!-- ══ MODAL: DO UMÓWIENIA ══ -->
+<div class="modal-overlay" id="modalToSchedule">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📌 Do umówienia</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Osoby, które musisz jeszcze zadzwonić i umówić na wizytę.</div>
+
+  <div class="form-group">
+    <label class="form-label">Klient (opcjonalnie - wybierz z listy)</label>
+    <input class="form-input" id="tsClientSearch" type="text" placeholder="Szukaj klienta..." oninput="filterTsClients()">
+    <div id="tsClientList" style="margin-top:8px;max-height:130px;overflow-y:auto"></div>
+  </div>
+
+  <label class="form-label">Lub wpisz imię i nazwisko ręcznie</label>
+  <input class="form-input" id="tsName" type="text" placeholder="np. Pan Kowalski (nowy klient)" style="margin-bottom:14px">
+
+  <label class="form-label">Telefon</label>
+  <input class="form-input" id="tsPhone" type="tel" placeholder="Numer telefonu" style="margin-bottom:14px">
+
+  <label class="form-label">Notatka</label>
+  <textarea class="form-input" id="tsNote" placeholder="np. Chce umówić przegląd, dzwonić po 15" style="margin-bottom:14px;min-height:70px"></textarea>
+
+  <button class="btn btn-primary" onclick="addToScheduleEntry()" style="margin-bottom:16px">➕ Dodaj do listy</button>
+
+  <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Lista do umówienia</div>
+  <div id="toScheduleList"></div>
+
+  <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalToSchedule')">Zamknij</button>
 </div>
 </div>
 
@@ -2733,7 +2768,8 @@ function buildBackupObject() {
     magazynHistoria: (typeof magazynHistoria !== 'undefined') ? magazynHistoria : [],
     companyInfo: JSON.parse(localStorage.getItem('company_info') || '{}'),
     recommendations: JSON.parse(localStorage.getItem('standard_recommendations') || '[]'),
-    version: '2.2'
+    toSchedule: (typeof toScheduleEntries !== 'undefined') ? toScheduleEntries : [],
+    version: '2.3'
   };
 }
 
@@ -3280,7 +3316,6 @@ function renderClients() {
       (c.phone||'').includes(q);
     if (!match) return false;
     if (currentFilter === 'all') return true;
-    if (currentFilter === 'toschedule') return !!c.needsScheduling;
     return getStatus(c) === currentFilter;
   });
 
@@ -3358,11 +3393,6 @@ function showDetail(id) {
       <button class="action-btn edit" onclick="openEditClient('${c.id}')">✏️ Edytuj</button>
       <button class="action-btn service" onclick="openAddService('${c.id}')">🔧 Serwis</button>
       <button class="action-btn" style="border-color:var(--red)44;color:var(--red);background:var(--red)11" onclick="deleteClientConfirm('${c.id}')">🗑 Usuń</button>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="toggleNeedsScheduling('${c.id}')">
-      <div class="toggle ${c.needsScheduling ? 'on' : ''}" id="needsSchedulingToggle"></div>
-      <div style="font-size:13px">📌 Do umówienia</div>
     </div>
 
     ${st === 'overdue' ? `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="toggleSmsReminderSent('${c.id}')">
@@ -5650,6 +5680,11 @@ function importBackup(input) {
         if (Array.isArray(backup.recommendations) && backup.recommendations.length && !localStorage.getItem('standard_recommendations')) {
           localStorage.setItem('standard_recommendations', JSON.stringify(backup.recommendations));
         }
+        if (Array.isArray(backup.toSchedule) && backup.toSchedule.length) {
+          const existingTsIds = new Set(toScheduleEntries.map(e => e.id));
+          backup.toSchedule.forEach(e => { if (e.id && !existingTsIds.has(e.id)) toScheduleEntries.push(e); });
+          saveToScheduleEntries();
+        }
 
         save();
         renderClients();
@@ -6341,6 +6376,99 @@ async function computeLocationGroups(onProgress) {
   return { groups, skipped: withAddress.length - geocoded.length };
 }
 
+let toScheduleEntries = JSON.parse(localStorage.getItem('serwis_to_schedule') || '[]');
+let selectedTsClientId = null;
+
+function saveToScheduleEntries() {
+  localStorage.setItem('serwis_to_schedule', JSON.stringify(toScheduleEntries));
+}
+
+function openToScheduleModal() {
+  selectedTsClientId = null;
+  document.getElementById('tsClientSearch').value = '';
+  document.getElementById('tsClientList').innerHTML = '';
+  document.getElementById('tsName').value = '';
+  document.getElementById('tsPhone').value = '';
+  document.getElementById('tsNote').value = '';
+  renderToScheduleList();
+  openModal('modalToSchedule');
+}
+
+function filterTsClients() {
+  const q = document.getElementById('tsClientSearch').value.trim().toLowerCase();
+  const listEl = document.getElementById('tsClientList');
+  if (!q) { listEl.innerHTML = ''; return; }
+  const matches = clients.filter(c => (c.name || '').toLowerCase().includes(q)).slice(0, 8);
+  listEl.innerHTML = matches.map(c => `
+    <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="pickTsClient('${c.id}')">
+      <div style="font-weight:600">${c.name}</div>
+      <div style="font-size:12px;color:var(--muted)">${[c.street, c.city].filter(Boolean).join(', ')}</div>
+    </div>
+  `).join('');
+}
+
+function pickTsClient(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  selectedTsClientId = id;
+  document.getElementById('tsName').value = '';
+  document.getElementById('tsPhone').value = c.phone || '';
+  document.getElementById('tsClientSearch').value = c.name;
+  document.getElementById('tsClientList').innerHTML = '';
+}
+
+function addToScheduleEntry() {
+  const manualName = document.getElementById('tsName').value.trim();
+  const c = selectedTsClientId ? clients.find(x => x.id === selectedTsClientId) : null;
+  const name = c ? c.name : manualName;
+  if (!name) {
+    showToast('Wybierz klienta z listy albo wpisz imię i nazwisko', true);
+    return;
+  }
+  toScheduleEntries.push({
+    id: genId(),
+    clientId: selectedTsClientId || null,
+    name,
+    phone: document.getElementById('tsPhone').value.trim(),
+    note: document.getElementById('tsNote').value.trim(),
+  });
+  saveToScheduleEntries();
+
+  selectedTsClientId = null;
+  document.getElementById('tsClientSearch').value = '';
+  document.getElementById('tsClientList').innerHTML = '';
+  document.getElementById('tsName').value = '';
+  document.getElementById('tsPhone').value = '';
+  document.getElementById('tsNote').value = '';
+
+  renderToScheduleList();
+  showToast(`✅ Dodano ${name} do listy`);
+}
+
+function renderToScheduleList() {
+  const listEl = document.getElementById('toScheduleList');
+  if (!toScheduleEntries.length) {
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);text-align:center;padding:20px 0">Lista jest pusta - dodaj kogoś powyżej.</div>';
+    return;
+  }
+  listEl.innerHTML = toScheduleEntries.map(e => `
+    <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="flex:1;${e.clientId ? 'cursor:pointer' : ''}" ${e.clientId ? `onclick="closeModal('modalToSchedule');showDetail('${e.clientId}')"` : ''}>
+        <div style="font-weight:700">${e.name}</div>
+        ${e.phone ? `<div style="font-size:12px;color:var(--muted)">${e.phone}</div>` : ''}
+        ${e.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${e.note}</div>` : ''}
+      </div>
+      <button onclick="removeFromScheduleList('${e.id}')" style="background:none;border:none;color:var(--red);font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeFromScheduleList(id) {
+  toScheduleEntries = toScheduleEntries.filter(e => e.id !== id);
+  saveToScheduleEntries();
+  renderToScheduleList();
+}
+
 async function showLocationGroups() {
   openModal('modalLocationGroups');
   const listEl = document.getElementById('locationGroupsList');
@@ -6649,14 +6777,6 @@ function navigateToClient(id) {
   if (!addr) { showToast('Brak adresu', true); return; }
   const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
   window.open(url, '_system');
-}
-
-function toggleNeedsScheduling(id) {
-  const c = clients.find(x => x.id === id);
-  if (!c) return;
-  c.needsScheduling = !c.needsScheduling;
-  save();
-  showDetail(id);
 }
 
 function toggleSmsReminderSent(id) {
