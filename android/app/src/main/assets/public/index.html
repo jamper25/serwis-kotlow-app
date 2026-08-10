@@ -1266,6 +1266,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     </div>
   </div>
 
+  <div id="pulpitToScheduleCard" style="display:none;margin-bottom:8px">
+    <div class="zl-sum-card" style="cursor:pointer" onclick="showTab('wizyty');openToScheduleModal()">
+      <div class="zl-sum-num" style="color:var(--accent)" id="pulpitToSchedule">0</div>
+      <div class="zl-sum-label">📌 Do umówienia - nie zapomnij zadzwonić</div>
+    </div>
+  </div>
+
   <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Nadchodzące wizyty · 7 dni</div>
   <div id="pulpitUpcomingList"></div>
 </div>
@@ -1439,6 +1446,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
       </div>
     </div>
     <div class="sms-desc" style="margin-top:4px">Codzienne przypomnienie, ile masz już przeterminowanych klientów.</div>
+    <div class="sms-setting" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <label>Powiadomienia o liście "Do umówienia"</label>
+      <div class="toggle-wrap">
+        <div class="toggle" id="notifToScheduleToggle" onclick="toggleToScheduleNotifications()"></div>
+        <span id="notifToScheduleStatus" style="font-size:12px;color:var(--muted)">Wyłączone</span>
+      </div>
+    </div>
+    <div class="sms-desc" style="margin-top:4px">Codzienne przypomnienie, jeśli masz kogoś na liście "Do umówienia" - żeby nie zapomnieć oddzwonić.</div>
     <button class="io-btn" onclick="scheduleAllNotifications()" style="margin-top:4px">
       <span class="io-icon">🔄</span> Zaplanuj powiadomienia teraz
     </button>
@@ -1612,7 +1627,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-88 (Do umówienia: pełny formularz jak przy wizycie, bez statusów)
+    Wersja: 2026-07-12-89 (przypomnienie o liście Do umówienia: karta na Pulpicie + powiadomienie)
   </div>
 </div>
 
@@ -3270,6 +3285,10 @@ function renderPulpit() {
 
   const overdueCount = clients.filter(c => getStatus(c) === 'overdue').length;
   document.getElementById('pulpitOverdue').textContent = overdueCount;
+
+  const tsCount = (typeof toScheduleEntries !== 'undefined') ? toScheduleEntries.length : 0;
+  document.getElementById('pulpitToScheduleCard').style.display = tsCount > 0 ? '' : 'none';
+  document.getElementById('pulpitToSchedule').textContent = tsCount;
 
   const todayStr = localDateStr(now);
   const in7 = new Date(now); in7.setDate(in7.getDate() + 7);
@@ -6381,6 +6400,7 @@ let selectedTsClientId = null;
 
 function saveToScheduleEntries() {
   localStorage.setItem('serwis_to_schedule', JSON.stringify(toScheduleEntries));
+  scheduleNotifRefresh();
 }
 
 function openToScheduleModal() {
@@ -6824,7 +6844,9 @@ function saveSmsTemplate() {
 // ══════════════════════════════════════════════════
 let notifEnabled = false;
 let notifOverdueEnabled = false;
+let notifToScheduleEnabled = false;
 const OVERDUE_NOTIF_ID = 999999999;
+const TOSCHEDULE_NOTIF_ID = 999999998;
 
 function getLocalNotifPlugin() {
   return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
@@ -6901,6 +6923,37 @@ async function toggleOverdueNotifications() {
   }
 }
 
+async function toggleToScheduleNotifications() {
+  const plugin = getLocalNotifPlugin();
+  if (!plugin) {
+    showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
+    return;
+  }
+  if (!notifToScheduleEnabled) {
+    try {
+      const perm = await plugin.requestPermissions();
+      if (perm.display === 'granted') {
+        notifToScheduleEnabled = true;
+        updateNotifUI();
+        saveNotifSettings();
+        await scheduleAllNotifications();
+        showToast('Powiadomienia o liście "Do umówienia" włączone!');
+      } else {
+        showToast('Brak zgody na powiadomienia', true);
+      }
+    } catch (e) {
+      console.log('Notif permission error', e);
+      showToast('Błąd uprawnień powiadomień', true);
+    }
+  } else {
+    notifToScheduleEnabled = false;
+    updateNotifUI();
+    saveNotifSettings();
+    try { await plugin.cancel({ notifications: [{ id: TOSCHEDULE_NOTIF_ID }] }); } catch(e) {}
+    showToast('Powiadomienia o liście "Do umówienia" wyłączone');
+  }
+}
+
 function updateNotifUI() {
   const toggle = document.getElementById('notifToggle');
   const status = document.getElementById('notifStatus');
@@ -6928,11 +6981,25 @@ function updateNotifUI() {
       overdueStatus.style.color = 'var(--muted)';
     }
   }
+  const tsToggle = document.getElementById('notifToScheduleToggle');
+  const tsStatus = document.getElementById('notifToScheduleStatus');
+  if (tsToggle) {
+    if (notifToScheduleEnabled) {
+      tsToggle.classList.add('on');
+      tsStatus.textContent = 'Włączone';
+      tsStatus.style.color = 'var(--green)';
+    } else {
+      tsToggle.classList.remove('on');
+      tsStatus.textContent = 'Wyłączone';
+      tsStatus.style.color = 'var(--muted)';
+    }
+  }
 }
 
 function saveNotifSettings() {
   localStorage.setItem('notif_enabled', notifEnabled ? '1' : '0');
   localStorage.setItem('notif_overdue_enabled', notifOverdueEnabled ? '1' : '0');
+  localStorage.setItem('notif_toschedule_enabled', notifToScheduleEnabled ? '1' : '0');
   localStorage.setItem('notif_days', document.getElementById('notifDays')?.value || '7');
 }
 
@@ -6947,6 +7014,7 @@ async function loadNotifSettings() {
   }
   notifEnabled = localStorage.getItem('notif_enabled') === '1' && granted;
   notifOverdueEnabled = localStorage.getItem('notif_overdue_enabled') === '1' && granted;
+  notifToScheduleEnabled = localStorage.getItem('notif_toschedule_enabled') === '1' && granted;
   const days = localStorage.getItem('notif_days') || '7';
   const tmpl = localStorage.getItem('sms_template');
   const daysEl = document.getElementById('notifDays');
@@ -6991,7 +7059,7 @@ async function scheduleAllNotifications() {
     showToast('Powiadomienia dostępne tylko w zainstalowanej aplikacji', true);
     return;
   }
-  if (!notifEnabled && !notifOverdueEnabled) {
+  if (!notifEnabled && !notifOverdueEnabled && !notifToScheduleEnabled) {
     showToast('Włącz najpierw przynajmniej jeden rodzaj powiadomień!', true);
     return;
   }
@@ -7040,6 +7108,21 @@ async function scheduleAllNotifications() {
     }
   }
 
+  if (notifToScheduleEnabled) {
+    const tsCount = (typeof toScheduleEntries !== 'undefined') ? toScheduleEntries.length : 0;
+    if (tsCount > 0) {
+      const tomorrow9am2 = new Date();
+      tomorrow9am2.setDate(tomorrow9am2.getDate() + 1);
+      tomorrow9am2.setHours(9, 0, 0, 0);
+      toSchedule.push({
+        id: TOSCHEDULE_NOTIF_ID,
+        title: '📌 Do umówienia',
+        body: `Masz ${tsCount} ${tsCount === 1 ? 'osobę' : 'osoby/osób'} do oddzwonienia i umówienia - nie zapomnij!`,
+        schedule: { at: tomorrow9am2, every: 'day' },
+      });
+    }
+  }
+
   if (toSchedule.length) {
     try {
       await plugin.schedule({ notifications: toSchedule });
@@ -7056,7 +7139,7 @@ async function scheduleAllNotifications() {
 async function autoRefreshNotifications() {
   const plugin = getLocalNotifPlugin();
   if (!plugin) return;
-  if (!notifEnabled && !notifOverdueEnabled) return;
+  if (!notifEnabled && !notifOverdueEnabled && !notifToScheduleEnabled) return;
   try {
     const pending = await plugin.getPending();
     if (pending.notifications.length) {
@@ -7093,6 +7176,20 @@ async function autoRefreshNotifications() {
           title: '⚠️ Przeterminowani klienci',
           body: `Masz ${overdueCount} ${overdueCount === 1 ? 'klienta' : 'klientów'} z przeterminowanym serwisem - sprawdź listę`,
           schedule: { at: tomorrow9am, every: 'day' },
+        });
+      }
+    }
+    if (notifToScheduleEnabled) {
+      const tsCount = (typeof toScheduleEntries !== 'undefined') ? toScheduleEntries.length : 0;
+      if (tsCount > 0) {
+        const tomorrow9am2 = new Date();
+        tomorrow9am2.setDate(tomorrow9am2.getDate() + 1);
+        tomorrow9am2.setHours(9, 0, 0, 0);
+        toSchedule.push({
+          id: TOSCHEDULE_NOTIF_ID,
+          title: '📌 Do umówienia',
+          body: `Masz ${tsCount} ${tsCount === 1 ? 'osobę' : 'osoby/osób'} do oddzwonienia i umówienia - nie zapomnij!`,
+          schedule: { at: tomorrow9am2, every: 'day' },
         });
       }
     }
