@@ -1404,8 +1404,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <button class="io-btn" onclick="openAddPart()" style="margin-bottom:10px;width:100%;background:var(--green)">
     <span class="io-icon">➕</span> Dodaj część do magazynu
   </button>
-  <button class="io-btn" onclick="openMagazynReport()" style="margin-bottom:14px;width:100%;background:var(--blue)">
+  <button class="io-btn" onclick="openMagazynReport()" style="margin-bottom:10px;width:100%;background:var(--blue)">
     <span class="io-icon">📋</span> Raport magazynowy (remanent)
+  </button>
+  <button class="io-btn" onclick="openReorderModal()" style="margin-bottom:14px;width:100%;background:var(--accent)">
+    <span class="io-icon">🛒</span> Do zamówienia
   </button>
 
   <div class="search-wrap" style="margin-bottom:12px">
@@ -1627,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-89 (przypomnienie o liście Do umówienia: karta na Pulpicie + powiadomienie)
+    Wersja: 2026-07-12-91 (lista do zamówienia: ręczne zaznaczanie checkboxami)
   </div>
 </div>
 
@@ -2149,6 +2152,25 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div id="toScheduleList"></div>
 
   <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalToSchedule')">Zamknij</button>
+</div>
+</div>
+
+<!-- ══ MODAL: DO ZAMÓWIENIA ══ -->
+<div class="modal-overlay" id="modalReorder">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">🛒 Do zamówienia</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Części poniżej stanu minimalnego. Zaznacz, które faktycznie chcesz teraz zamówić - reszta może jeszcze poczekać.</div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="btn btn-secondary" style="flex:1" onclick="reorderSelectAll(true)">Zaznacz wszystkie</button>
+    <button class="btn btn-secondary" style="flex:1" onclick="reorderSelectAll(false)">Odznacz wszystkie</button>
+  </div>
+
+  <div id="reorderList"></div>
+
+  <button class="btn btn-primary" onclick="sendReorderList()" style="margin-top:16px">📤 Wyślij zaznaczone</button>
+  <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('modalReorder')">Zamknij</button>
 </div>
 </div>
 
@@ -6806,6 +6828,69 @@ function toggleSmsReminderSent(id) {
   c.smsReminderSentDate = c.smsReminderSent ? localDateStr(new Date()) : null;
   save();
   showDetail(id);
+}
+
+let selectedReorderIds = new Set();
+
+function openReorderModal() {
+  const low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  if (!low.length) {
+    showToast('✅ Wszystko w normie, nic do zamówienia!');
+    return;
+  }
+  selectedReorderIds = new Set();
+  renderReorderList();
+  openModal('modalReorder');
+}
+
+function renderReorderList() {
+  const low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  const listEl = document.getElementById('reorderList');
+  listEl.innerHTML = low.map(p => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer;border-bottom:1px solid var(--border)" onclick="toggleReorderItem('${p.id}')">
+      <div class="toggle ${selectedReorderIds.has(p.id) ? 'on' : ''}" style="flex-shrink:0"></div>
+      <div style="flex:1">
+        <div style="font-weight:700">${p.number} ${p.name || ''}</div>
+        <div style="font-size:12px;color:var(--muted)">mam: ${p.qty} · potrzeba min. ${p.minStock || 0}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleReorderItem(id) {
+  if (selectedReorderIds.has(id)) selectedReorderIds.delete(id);
+  else selectedReorderIds.add(id);
+  renderReorderList();
+}
+
+function reorderSelectAll(state) {
+  const low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  selectedReorderIds = state ? new Set(low.map(p => p.id)) : new Set();
+  renderReorderList();
+}
+
+async function sendReorderList() {
+  const selected = magazyn.filter(p => selectedReorderIds.has(p.id));
+  if (!selected.length) {
+    showToast('Zaznacz przynajmniej jedną część', true);
+    return;
+  }
+  const lines = selected.map(p => {
+    const brakuje = Math.max(1, (p.minStock || 0) - p.qty);
+    return `• ${p.number} ${p.name || ''} - mam: ${p.qty}, potrzeba min. ${p.minStock || 0} (zamów: ${brakuje} szt.)`;
+  });
+  const msg = `Lista do zamówienia (${localDateStr(new Date())}):\n\n${lines.join('\n')}`;
+
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (plugins && plugins.Share) {
+    try {
+      await plugins.Share.share({ title: 'Lista do zamówienia', text: msg, dialogTitle: 'Wyślij listę do dostawcy' });
+    } catch (e) {
+      console.log('share reorder list error', e);
+    }
+  } else {
+    showToast('Udostępnianie dostępne tylko w zainstalowanej aplikacji', true);
+  }
 }
 
 function sendSMS(id) {
