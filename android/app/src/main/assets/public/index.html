@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-92 (Do umówienia: widok z Pulpitu pokazuje tylko listę, usuwanie z potwierdzeniem)
+    Wersja: 2026-07-12-93 (lista zamówienia: czytelny stan jako duży badge + wyszukiwarka)
   </div>
 </div>
 
@@ -2163,6 +2163,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal-handle"></div>
   <div class="modal-title">🛒 Do zamówienia</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Części poniżej stanu minimalnego. Zaznacz, które faktycznie chcesz teraz zamówić - reszta może jeszcze poczekać.</div>
+
+  <input class="form-input" id="reorderSearch" type="text" placeholder="🔍 Szukaj części..." oninput="renderReorderList()" style="margin-bottom:12px">
 
   <div style="display:flex;gap:8px;margin-bottom:14px">
     <button class="btn btn-secondary" style="flex:1" onclick="reorderSelectAll(true)">Zaznacz wszystkie</button>
@@ -6845,22 +6847,36 @@ function openReorderModal() {
     return;
   }
   selectedReorderIds = new Set();
+  const searchEl = document.getElementById('reorderSearch');
+  if (searchEl) searchEl.value = '';
   renderReorderList();
   openModal('modalReorder');
 }
 
 function renderReorderList() {
-  const low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  const q = (document.getElementById('reorderSearch')?.value || '').trim().toLowerCase();
+  const qNorm = normalizeForSearch(q);
+  let low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  if (q) low = low.filter(p => normalizeForSearch(p.number).includes(qNorm) || (p.name || '').toLowerCase().includes(q));
   const listEl = document.getElementById('reorderList');
-  listEl.innerHTML = low.map(p => `
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer;border-bottom:1px solid var(--border)" onclick="toggleReorderItem('${p.id}')">
-      <div class="toggle ${selectedReorderIds.has(p.id) ? 'on' : ''}" style="flex-shrink:0"></div>
-      <div style="flex:1">
-        <div style="font-weight:700">${p.number} ${p.name || ''}</div>
-        <div style="font-size:12px;color:var(--muted)">mam: ${p.qty} · potrzeba min. ${p.minStock || 0}</div>
+  if (!low.length) {
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);text-align:center;padding:20px 0">Brak wyników.</div>';
+    return;
+  }
+  listEl.innerHTML = low.map(p => {
+    const badgeColor = p.qty <= 0 ? 'var(--red)' : 'var(--accent)';
+    return `<div style="display:flex;align-items:center;gap:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer" onclick="toggleReorderItem('${p.id}')">
+      <div style="width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;${selectedReorderIds.has(p.id) ? `background:var(--accent);color:#fff` : `border:2px solid var(--border);color:transparent`}">✓</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:17px">${p.name || p.number}</div>
+        <div style="font-size:13px;color:var(--muted)">${p.number}</div>
       </div>
-    </div>
-  `).join('');
+      <div style="background:${badgeColor};border-radius:10px;padding:8px 14px;text-align:center;flex-shrink:0">
+        <div style="font-weight:800;font-size:17px;color:#fff">stan: ${p.qty}</div>
+        <div style="font-size:11px;color:#fff;opacity:.9">min: ${p.minStock || 0}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function toggleReorderItem(id) {
