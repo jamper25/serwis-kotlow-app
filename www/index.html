@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-94 (ponowna próba builda - poprzedni padł przez chwilowy błąd serwera Gradle)
+    Wersja: 2026-07-12-95 (Do umówienia: wyszukiwanie klienta też po ulicy/mieście/telefonie)
   </div>
 </div>
 
@@ -6445,7 +6445,12 @@ function filterTsClients() {
   const q = document.getElementById('tsClientSearch').value.trim().toLowerCase();
   const listEl = document.getElementById('tsClientList');
   if (!q) { listEl.innerHTML = ''; return; }
-  const matches = clients.filter(c => (c.name || '').toLowerCase().includes(q)).slice(0, 8);
+  const matches = clients.filter(c =>
+    (c.name || '').toLowerCase().includes(q) ||
+    (c.street || '').toLowerCase().includes(q) ||
+    (c.city || '').toLowerCase().includes(q) ||
+    (c.phone || '').includes(q)
+  ).slice(0, 8);
   listEl.innerHTML = matches.map(c => `
     <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="pickTsClient('${c.id}')">
       <div style="font-weight:600">${c.name}</div>
