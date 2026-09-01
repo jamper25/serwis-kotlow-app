@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-95 (Do umówienia: wyszukiwanie klienta też po ulicy/mieście/telefonie)
+    Wersja: 2026-07-12-96 (Do umówienia: mapa planowania wg lokalizacji z pinezkami)
   </div>
 </div>
 
@@ -2157,7 +2157,20 @@ svg.leaflet-image-layer.leaflet-interactive path {
 </div>
 </div>
 
-<!-- ══ MODAL: DO ZAMÓWIENIA ══ -->
+<!-- ══ MODAL: MAPA PLANOWANIA (DO UMÓWIENIA) ══ -->
+<div class="modal-overlay" id="modalToScheduleMap">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📅 Zaplanuj wg lokalizacji</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px" id="toScheduleMapSubtitle"></div>
+  <div id="toScheduleMapContainer" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:var(--muted)">
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:4px"></span>Ta osoba (do umówienia)</div>
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Już zaplanowane wizyty</div>
+  </div>
+  <button class="btn btn-secondary" onclick="closeModal('modalToScheduleMap')">Zamknij</button>
+</div>
+</div>
 <div class="modal-overlay" id="modalReorder">
 <div class="modal">
   <div class="modal-handle"></div>
@@ -6510,9 +6523,89 @@ function renderToScheduleList() {
         ${e.phone ? `<div style="font-size:12px;color:var(--muted)">${e.phone}</div>` : ''}
         ${e.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${e.note}</div>` : ''}
       </div>
+      <button onclick="openToScheduleMap('${e.id}')" style="background:none;border:none;color:var(--blue);font-size:20px;cursor:pointer;padding:4px 8px">📅</button>
       <button onclick="removeFromScheduleList('${e.id}')" style="background:none;border:none;color:var(--red);font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
   `).join('');
+}
+
+let toScheduleMapInstance = null;
+
+async function openToScheduleMap(entryId) {
+  const entry = toScheduleEntries.find(x => x.id === entryId);
+  if (!entry) return;
+  if (!entry.clientId) {
+    showToast('Ta osoba nie ma zapisanego adresu (dodana ręcznie) - nie można pokazać jej na mapie', true);
+    return;
+  }
+  const c = clients.find(x => x.id === entry.clientId);
+  if (!c || !c.street || !c.city) {
+    showToast('Ten klient nie ma pełnego adresu', true);
+    return;
+  }
+
+  showToast('🔍 Szukam adresu na mapie...');
+  if (!c.lat || !c.lng) {
+    const coords = await geocodeAddress(c.street, c.city);
+    if (!coords) {
+      showToast('Nie udało się znaleźć tego adresu na mapie', true);
+      return;
+    }
+    c.lat = coords.lat; c.lng = coords.lng;
+    save();
+  }
+
+  document.getElementById('toScheduleMapSubtitle').textContent = `${entry.name} · ${c.street}, ${c.city}`;
+  openModal('modalToScheduleMap');
+
+  // Zbierz klientów z już zaplanowanymi wizytami w najbliższych 60 dniach
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const nearbyAppointments = [];
+  for (const a of appointments) {
+    if (!a.clientId || a.clientId === c.id) continue;
+    const d = new Date(a.date);
+    const diffDays = Math.round((d - now) / 86400000);
+    if (diffDays < 0 || diffDays > 60) continue;
+    const otherClient = clients.find(x => x.id === a.clientId);
+    if (!otherClient || !otherClient.street || !otherClient.city) continue;
+    if (!otherClient.lat || !otherClient.lng) {
+      const coords = await geocodeAddress(otherClient.street, otherClient.city);
+      if (!coords) continue;
+      otherClient.lat = coords.lat; otherClient.lng = coords.lng;
+    }
+    nearbyAppointments.push({ client: otherClient, date: a.date });
+  }
+  save();
+
+  setTimeout(() => renderToScheduleMap(c, entry.name, nearbyAppointments), 60);
+}
+
+function renderToScheduleMap(mainClient, mainName, nearbyAppointments) {
+  const container = document.getElementById('toScheduleMapContainer');
+  if (!container || typeof L === 'undefined') return;
+
+  if (toScheduleMapInstance) {
+    toScheduleMapInstance.remove();
+    toScheduleMapInstance = null;
+  }
+
+  const allPoints = [[mainClient.lat, mainClient.lng], ...nearbyAppointments.map(x => [x.client.lat, x.client.lng])];
+  toScheduleMapInstance = L.map(container, { attributionControl: false }).fitBounds(allPoints, { padding: [30, 30] });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(toScheduleMapInstance);
+
+  L.circleMarker([mainClient.lat, mainClient.lng], { radius: 11, color: '#fff', weight: 2, fillColor: '#f97316', fillOpacity: 0.95 })
+    .addTo(toScheduleMapInstance)
+    .bindPopup(`<b>${mainName}</b><br>Do umówienia`)
+    .openPopup();
+
+  nearbyAppointments.forEach(({ client, date }) => {
+    L.circleMarker([client.lat, client.lng], { radius: 9, color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.9 })
+      .addTo(toScheduleMapInstance)
+      .bindPopup(`<b>${client.name}</b><br>Wizyta: ${formatDate(date)}`);
+  });
 }
 
 function removeFromScheduleList(id) {
