@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-98 (dodawanie klienta: usunięto wbudowany serwis, teraz jak u istniejącego klienta)
+    Wersja: 2026-07-12-99 (mapa: podgląd wszystkich "Do umówienia" naraz)
   </div>
 </div>
 
@@ -2094,10 +2094,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <label class="form-label">Notatka</label>
     <textarea class="form-input" id="tsNote" placeholder="np. Chce umówić przegląd, dzwonić po 15" style="margin-bottom:14px;min-height:70px"></textarea>
 
-    <button class="btn btn-primary" onclick="addToScheduleEntry()" style="margin-bottom:16px">➕ Dodaj do listy</button>
+    <button class="btn btn-primary" id="tsAddBtn" onclick="addToScheduleEntry()" style="margin-bottom:16px">➕ Dodaj do listy</button>
   </div>
 
   <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Lista do umówienia</div>
+  <button class="io-btn" onclick="openAllToScheduleMap()" style="margin-bottom:12px;width:100%;background:var(--blue)">
+    <span class="io-icon">🗺️</span> Zobacz wszystkich na mapie
+  </button>
   <div id="toScheduleList"></div>
 
   <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalToSchedule')">Zamknij</button>
@@ -2111,18 +2114,29 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal-title">📅 Zaplanuj wg lokalizacji</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:14px" id="toScheduleMapSubtitle"></div>
 
-  <div style="display:flex;gap:8px;margin-bottom:14px">
+  <div id="tsMapSearchRow" style="display:flex;gap:8px;margin-bottom:14px">
     <input class="form-input" id="tsMapAddressInput" type="text" placeholder="Wpisz przybliżony adres (np. ulica, miasto)" style="flex:1">
     <button class="btn btn-primary" style="width:auto;padding:0 18px" onclick="searchTsMapAddress()">🔍 Szukaj</button>
   </div>
 
-  <div id="toScheduleMapContainer" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:20px">Wpisz adres powyżej i dotknij "Szukaj", żeby dodać pinezkę.</div>
+  <div id="toScheduleMapContainer" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:20px">Wpisz adres powyżej i dotknij "Szukaj", żeby dodać pinezkę.</div>
+  <button class="btn btn-secondary" onclick="openTsMapFullscreen()" style="margin-bottom:14px">🔍 Powiększ mapę (pełny ekran)</button>
   <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:var(--muted)">
-    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:4px"></span>Ta osoba (do umówienia)</div>
+    <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:4px"></span><span id="tsMapLegendMain">Ta osoba (do umówienia)</span></div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Już zaplanowane wizyty</div>
   </div>
   <button class="btn btn-secondary" onclick="closeModal('modalToScheduleMap')">Zamknij</button>
 </div>
+</div>
+
+<!-- ══ PEŁNOEKRANOWY WIDOK MAPY (Do umówienia) ══ -->
+<div id="tsMapFullscreenOverlay" style="display:none;position:fixed;inset:0;z-index:9500;background:var(--bg);flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)">
+    <div style="font-weight:700" id="tsMapFullscreenTitle">📅 Mapa</div>
+    <button onclick="closeTsMapFullscreen()" style="background:none;border:none;color:var(--text);font-size:22px;cursor:pointer">✕</button>
+  </div>
+  <div style="padding:10px 16px;font-size:12px;color:var(--muted)">Przytrzymaj palec na mapie, żeby dokładnie ustawić pinezkę tej osoby.</div>
+  <div id="tsMapFullscreenContainer" style="flex:1"></div>
 </div>
 <div class="modal-overlay" id="modalReorder">
 <div class="modal">
@@ -2865,6 +2879,8 @@ function daysLeft(client) {
 // dopiero podwójne wciśnięcie na głównym ekranie zamyka aplikację
 // ══════════════════════════════════════════════════
 let lastBackPress = 0;
+let tabHistory = ['klienci'];
+let isNavigatingBack = false;
 
 function initBackButton() {
   const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
@@ -2877,11 +2893,11 @@ function initBackButton() {
       return;
     }
 
-    const activeSection = document.querySelector('.section.active');
-    const activeTab = activeSection ? activeSection.id.replace('sec-', '') : 'klienci';
-
-    if (activeTab !== 'klienci') {
-      showTab('klienci');
+    if (tabHistory.length > 1) {
+      tabHistory.pop();
+      const prevTab = tabHistory[tabHistory.length - 1];
+      isNavigatingBack = true;
+      showTab(prevTab);
       return;
     }
 
@@ -2917,6 +2933,13 @@ function showTab(tab) {
   if (tab === 'klienci') renderClients();
   if (tab === 'zlecenia') renderZlecenia();
   if (tab === 'magazyn') renderMagazyn();
+
+  if (isNavigatingBack) {
+    isNavigatingBack = false;
+  } else if (tabHistory[tabHistory.length - 1] !== tab) {
+    tabHistory.push(tab);
+    if (tabHistory.length > 20) tabHistory.shift(); // nie pozwól historii rosnąć w nieskończoność
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -6341,16 +6364,35 @@ function saveToScheduleEntries() {
   scheduleNotifRefresh();
 }
 
+let editingTsEntryId = null;
+
 function openToScheduleModal(listOnly) {
+  editingTsEntryId = null;
   selectedTsClientId = null;
   document.getElementById('tsClientSearch').value = '';
   document.getElementById('tsClientList').innerHTML = '';
   document.getElementById('tsName').value = '';
   document.getElementById('tsPhone').value = '';
   document.getElementById('tsNote').value = '';
+  document.getElementById('tsAddBtn').textContent = '➕ Dodaj do listy';
   document.getElementById('tsAddFormWrap').style.display = listOnly ? 'none' : '';
   renderToScheduleList();
   openModal('modalToSchedule');
+}
+
+function editToScheduleEntry(entryId) {
+  const e = toScheduleEntries.find(x => x.id === entryId);
+  if (!e) return;
+  editingTsEntryId = entryId;
+  selectedTsClientId = null;
+  document.getElementById('tsClientSearch').value = '';
+  document.getElementById('tsClientList').innerHTML = '';
+  document.getElementById('tsName').value = e.name;
+  document.getElementById('tsPhone').value = e.phone || '';
+  document.getElementById('tsNote').value = e.note || '';
+  document.getElementById('tsAddFormWrap').style.display = '';
+  document.getElementById('tsAddBtn').textContent = '💾 Zapisz zmiany';
+  showToast('Edytujesz wpis - zmień dane i zapisz');
 }
 
 function filterTsClients() {
@@ -6389,14 +6431,30 @@ function addToScheduleEntry() {
     showToast('Wybierz klienta z listy albo wpisz imię i nazwisko', true);
     return;
   }
-  toScheduleEntries.push({
-    id: genId(),
-    clientId: selectedTsClientId || null,
-    name,
-    phone: document.getElementById('tsPhone').value.trim(),
-    note: document.getElementById('tsNote').value.trim(),
-  });
-  saveToScheduleEntries();
+
+  if (editingTsEntryId) {
+    const e = toScheduleEntries.find(x => x.id === editingTsEntryId);
+    if (e) {
+      e.name = name;
+      e.phone = document.getElementById('tsPhone').value.trim();
+      e.note = document.getElementById('tsNote').value.trim();
+      if (selectedTsClientId) e.clientId = selectedTsClientId;
+      saveToScheduleEntries();
+      showToast(`✅ Zaktualizowano ${name}`);
+    }
+    editingTsEntryId = null;
+    document.getElementById('tsAddBtn').textContent = '➕ Dodaj do listy';
+  } else {
+    toScheduleEntries.push({
+      id: genId(),
+      clientId: selectedTsClientId || null,
+      name,
+      phone: document.getElementById('tsPhone').value.trim(),
+      note: document.getElementById('tsNote').value.trim(),
+    });
+    saveToScheduleEntries();
+    showToast(`✅ Dodano ${name} do listy`);
+  }
 
   selectedTsClientId = null;
   document.getElementById('tsClientSearch').value = '';
@@ -6406,7 +6464,6 @@ function addToScheduleEntry() {
   document.getElementById('tsNote').value = '';
 
   renderToScheduleList();
-  showToast(`✅ Dodano ${name} do listy`);
 }
 
 function renderToScheduleList() {
@@ -6422,6 +6479,7 @@ function renderToScheduleList() {
         ${e.phone ? `<div style="font-size:12px;color:var(--muted)">${e.phone}</div>` : ''}
         ${e.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${e.note}</div>` : ''}
       </div>
+      ${!e.clientId ? `<button onclick="editToScheduleEntry('${e.id}')" style="background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:4px 8px">✏️</button>` : ''}
       <button onclick="openToScheduleMap('${e.id}')" style="background:none;border:none;color:var(--blue);font-size:20px;cursor:pointer;padding:4px 8px">📅</button>
       <button onclick="removeFromScheduleList('${e.id}')" style="background:none;border:none;color:var(--red);font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
@@ -6429,10 +6487,80 @@ function renderToScheduleList() {
 }
 
 let toScheduleMapInstance = null;
-
+let tsMapFullscreenInstance = null;
 let currentTsMapEntryId = null;
+let currentTsNearbyAppointments = [];
+let currentTsAllEntries = null;
+
+async function openAllToScheduleMap() {
+  const withLocation = toScheduleEntries.filter(e => e.lat && e.lng);
+  if (!withLocation.length) {
+    showToast('Żaden wpis nie ma jeszcze ustawionej lokalizacji - otwórz kogoś (📅) i wyszukaj albo ustaw adres', true);
+    return;
+  }
+  currentTsMapEntryId = null;
+  currentTsAllEntries = withLocation;
+  document.getElementById('toScheduleMapSubtitle').textContent = `${withLocation.length} ${withLocation.length === 1 ? 'osoba' : 'osób'} z ustawioną lokalizacją`;
+  document.getElementById('tsMapLegendMain').textContent = 'Do umówienia';
+  document.getElementById('tsMapSearchRow').style.display = 'none';
+  openModal('modalToScheduleMap');
+
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const entryClientIds = new Set(withLocation.map(e => e.clientId).filter(Boolean));
+  const nearbyAppointments = [];
+  for (const a of appointments) {
+    if (!a.clientId || entryClientIds.has(a.clientId)) continue;
+    const d = new Date(a.date);
+    const diffDays = Math.round((d - now) / 86400000);
+    if (diffDays < 0 || diffDays > 60) continue;
+    const otherClient = clients.find(x => x.id === a.clientId);
+    if (!otherClient || !otherClient.lat || !otherClient.lng) continue;
+    nearbyAppointments.push({ client: otherClient, date: a.date });
+  }
+  currentTsNearbyAppointments = nearbyAppointments;
+
+  setTimeout(() => renderAllToScheduleMap('toScheduleMapContainer', withLocation, nearbyAppointments, false), 60);
+}
+
+function renderAllToScheduleMap(containerId, entries, nearbyAppointments, isFullscreen) {
+  const container = document.getElementById(containerId);
+  if (!container || typeof L === 'undefined') return;
+
+  const existing = isFullscreen ? tsMapFullscreenInstance : toScheduleMapInstance;
+  if (existing) existing.remove();
+
+  container.innerHTML = '';
+  if (!isFullscreen) {
+    container.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border)';
+  }
+
+  const allPoints = [...entries.map(e => [e.lat, e.lng]), ...nearbyAppointments.map(x => [x.client.lat, x.client.lng])];
+  const mapInstance = L.map(container, { attributionControl: false }).fitBounds(allPoints, { padding: [30, 30] });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(mapInstance);
+
+  entries.forEach(e => {
+    L.circleMarker([e.lat, e.lng], { radius: 11, color: '#fff', weight: 2, fillColor: '#f97316', fillOpacity: 0.95 })
+      .addTo(mapInstance)
+      .bindPopup(`<b>${e.name}</b><br>Do umówienia`);
+  });
+
+  nearbyAppointments.forEach(({ client, date }) => {
+    L.circleMarker([client.lat, client.lng], { radius: 9, color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.9 })
+      .addTo(mapInstance)
+      .bindPopup(`<b>${client.name}</b><br>Wizyta: ${formatDate(date)}`);
+  });
+
+  if (isFullscreen) tsMapFullscreenInstance = mapInstance;
+  else toScheduleMapInstance = mapInstance;
+}
 
 async function openToScheduleMap(entryId) {
+  document.getElementById('tsMapSearchRow').style.display = '';
+  document.getElementById('tsMapLegendMain').textContent = 'Ta osoba (do umówienia)';
+  currentTsAllEntries = null;
   const entry = toScheduleEntries.find(x => x.id === entryId);
   if (!entry) return;
   currentTsMapEntryId = entryId;
@@ -6457,8 +6585,8 @@ async function openToScheduleMap(entryId) {
   if (!lat || !lng) {
     const cont = document.getElementById('toScheduleMapContainer');
     if (toScheduleMapInstance) { toScheduleMapInstance.remove(); toScheduleMapInstance = null; }
-    cont.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center';
-    cont.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Brak zapisanego adresu. Wpisz przybliżony adres powyżej i dotknij "Szukaj".</div>';
+    cont.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center';
+    cont.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Brak zapisanego adresu. Wpisz przybliżony adres powyżej i dotknij "Szukaj", albo otwórz mapę na pełen ekran i przytrzymaj palec w miejscu adresu.</div>';
     return;
   }
 
@@ -6508,39 +6636,90 @@ async function renderToScheduleMapWithLocation(entry, lat, lng) {
     nearbyAppointments.push({ client: otherClient, date: a.date });
   }
   save();
+  currentTsNearbyAppointments = nearbyAppointments;
 
-  setTimeout(() => renderToScheduleMap(lat, lng, entry.name, nearbyAppointments), 60);
+  setTimeout(() => renderToScheduleMap('toScheduleMapContainer', lat, lng, entry.name, nearbyAppointments, false), 60);
 }
 
-function renderToScheduleMap(mainLat, mainLng, mainName, nearbyAppointments) {
-  const container = document.getElementById('toScheduleMapContainer');
+// Wspólna funkcja rysująca mapę - używana dla małego podglądu ORAZ pełnego ekranu.
+// isFullscreen decyduje, do której zmiennej instancji mapy przypisać wynik.
+function renderToScheduleMap(containerId, mainLat, mainLng, mainName, nearbyAppointments, isFullscreen) {
+  const container = document.getElementById(containerId);
   if (!container || typeof L === 'undefined') return;
 
-  if (toScheduleMapInstance) {
-    toScheduleMapInstance.remove();
-    toScheduleMapInstance = null;
-  }
+  const existing = isFullscreen ? tsMapFullscreenInstance : toScheduleMapInstance;
+  if (existing) existing.remove();
+
   container.innerHTML = '';
-  container.removeAttribute('style');
-  container.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)';
+  if (!isFullscreen) {
+    container.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border)';
+  }
 
   const allPoints = [[mainLat, mainLng], ...nearbyAppointments.map(x => [x.client.lat, x.client.lng])];
-  toScheduleMapInstance = L.map(container, { attributionControl: false }).fitBounds(allPoints, { padding: [30, 30] });
+  const mapInstance = L.map(container, { attributionControl: false }).fitBounds(allPoints, { padding: [30, 30] });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '© OpenStreetMap'
-  }).addTo(toScheduleMapInstance);
+  }).addTo(mapInstance);
 
   L.circleMarker([mainLat, mainLng], { radius: 11, color: '#fff', weight: 2, fillColor: '#f97316', fillOpacity: 0.95 })
-    .addTo(toScheduleMapInstance)
+    .addTo(mapInstance)
     .bindPopup(`<b>${mainName}</b><br>Do umówienia`)
     .openPopup();
 
   nearbyAppointments.forEach(({ client, date }) => {
     L.circleMarker([client.lat, client.lng], { radius: 9, color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.9 })
-      .addTo(toScheduleMapInstance)
+      .addTo(mapInstance)
       .bindPopup(`<b>${client.name}</b><br>Wizyta: ${formatDate(date)}`);
   });
+
+  // Długie przytrzymanie (na telefonie odpowiednik kliknięcia prawym na komputerze) - ręczne ustawienie pinezki
+  mapInstance.on('contextmenu', (e) => handleTsMapLongPress(e.latlng));
+
+  if (isFullscreen) tsMapFullscreenInstance = mapInstance;
+  else toScheduleMapInstance = mapInstance;
+}
+
+function handleTsMapLongPress(latlng) {
+  const entry = toScheduleEntries.find(x => x.id === currentTsMapEntryId);
+  if (!entry) return;
+  entry.lat = latlng.lat;
+  entry.lng = latlng.lng;
+  entry.manualAddress = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+  saveToScheduleEntries();
+  showToast('✅ Pinezka przesunięta!');
+  const addrInput = document.getElementById('tsMapAddressInput');
+  if (addrInput) addrInput.value = entry.manualAddress;
+  renderToScheduleMap('toScheduleMapContainer', latlng.lat, latlng.lng, entry.name, currentTsNearbyAppointments, false);
+  if (document.getElementById('tsMapFullscreenOverlay').style.display === 'flex') {
+    renderToScheduleMap('tsMapFullscreenContainer', latlng.lat, latlng.lng, entry.name, currentTsNearbyAppointments, true);
+  }
+}
+
+function openTsMapFullscreen() {
+  if (currentTsAllEntries) {
+    document.getElementById('tsMapFullscreenTitle').textContent = `📅 Wszyscy do umówienia`;
+    document.getElementById('tsMapFullscreenOverlay').style.display = 'flex';
+    setTimeout(() => {
+      renderAllToScheduleMap('tsMapFullscreenContainer', currentTsAllEntries, currentTsNearbyAppointments, true);
+    }, 60);
+    return;
+  }
+  const entry = toScheduleEntries.find(x => x.id === currentTsMapEntryId);
+  if (!entry || !entry.lat || !entry.lng) {
+    showToast('Najpierw ustaw adres tej osoby (wyszukaj powyżej)', true);
+    return;
+  }
+  document.getElementById('tsMapFullscreenTitle').textContent = `📅 ${entry.name}`;
+  document.getElementById('tsMapFullscreenOverlay').style.display = 'flex';
+  setTimeout(() => {
+    renderToScheduleMap('tsMapFullscreenContainer', entry.lat, entry.lng, entry.name, currentTsNearbyAppointments, true);
+  }, 60);
+}
+
+function closeTsMapFullscreen() {
+  document.getElementById('tsMapFullscreenOverlay').style.display = 'none';
+  if (tsMapFullscreenInstance) { tsMapFullscreenInstance.remove(); tsMapFullscreenInstance = null; }
 }
 
 function removeFromScheduleList(id) {
