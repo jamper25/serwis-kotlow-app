@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-96 (Do umówienia: mapa planowania wg lokalizacji z pinezkami)
+    Wersja: 2026-07-12-98 (dodawanie klienta: usunięto wbudowany serwis, teraz jak u istniejącego klienta)
   </div>
 </div>
 
@@ -1754,59 +1754,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <option value="12" selected>Co rok</option>
       <option value="24">Co 2 lata</option>
     </select>
-  </div>
-
-  <div id="firstServiceSection">
-  <div class="form-section">Dane pierwszego serwisu (jeśli wykonujesz go teraz)</div>
-  <div class="form-group">
-    <label class="form-label">Rodzaj</label>
-    <select class="form-select" id="fServiceType" onchange="toggleTypeOther('fServiceType','fServiceTypeOtherWrap')">
-      <option value="konserwacja">🟢 Konserwacja</option>
-      <option value="awaria">🔴 Awaria</option>
-      <option value="uruchomienie">🔵 Pierwsze uruchomienie</option>
-      <option value="inne">⚪ Inne</option>
-    </select>
-  </div>
-  <div class="form-group" id="fServiceTypeOtherWrap" style="display:none">
-    <label class="form-label">Nazwa własna</label>
-    <input class="form-input" id="fServiceTypeOther" placeholder="np. Przegląd gwarancyjny">
-  </div>
-  <div class="form-group">
-    <label class="form-label">Opis wykonanych prac</label>
-    <textarea class="form-textarea" id="fServiceDesc" placeholder="np. Czyszczenie palnika, wymiana uszczelek, regulacja ciśnienia..."></textarea>
-  </div>
-  <div class="form-row">
-    <div class="form-group">
-      <label class="form-label">Koszt robocizny (zł)</label>
-      <input class="form-input" id="fServiceCost" type="number" placeholder="0">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Koszt części (zł)</label>
-      <input class="form-input" id="fServiceParts" type="number" placeholder="0">
-    </div>
-  </div>
-  <div class="form-group">
-    <label class="form-label">Uwagi serwisowe</label>
-    <textarea class="form-textarea" id="fServiceNotes" placeholder="Dodatkowe uwagi do tego serwisu..."></textarea>
-  </div>
-  <div class="form-group">
-    <label class="form-label">📄 Zdjęcie protokołu → PDF</label>
-    <div class="proto-wrap">
-      <div class="proto-preview" id="fProtoPreview">
-        <div class="proto-placeholder">
-          <div class="pi">📄</div>
-          <div class="pt">Dodaj zdjęcie protokołu</div>
-        </div>
-      </div>
-      <input type="file" id="fProtoInput" accept="image/*" style="display:none" onchange="handleNewClientPhoto(this)">
-      <input type="file" id="fProtoCamera" accept="image/*" capture="environment" style="display:none" onchange="handleNewClientPhoto(this)">
-      <div class="proto-actions" style="margin-top:8px">
-        <button class="proto-btn" onclick="document.getElementById('fProtoCamera').click()">📸 Aparat</button>
-        <button class="proto-btn" onclick="document.getElementById('fProtoInput').click()">🖼 Galeria</button>
-        <button class="proto-btn remove" id="fProtoRemoveBtn" style="display:none" onclick="removeNewClientPhoto()">🗑 Usuń</button>
-      </div>
-    </div>
-  </div>
   </div>
 
   <div class="form-section">Notatki</div>
@@ -2163,7 +2110,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal-handle"></div>
   <div class="modal-title">📅 Zaplanuj wg lokalizacji</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:14px" id="toScheduleMapSubtitle"></div>
-  <div id="toScheduleMapContainer" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <input class="form-input" id="tsMapAddressInput" type="text" placeholder="Wpisz przybliżony adres (np. ulica, miasto)" style="flex:1">
+    <button class="btn btn-primary" style="width:auto;padding:0 18px" onclick="searchTsMapAddress()">🔍 Szukaj</button>
+  </div>
+
+  <div id="toScheduleMapContainer" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:20px">Wpisz adres powyżej i dotknij "Szukaj", żeby dodać pinezkę.</div>
   <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:var(--muted)">
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:4px"></span>Ta osoba (do umówienia)</div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Już zaplanowane wizyty</div>
@@ -2853,49 +2806,6 @@ function nextAvailableServiceTime(dateStr, excludeServiceId) {
   return String(hour).padStart(2, '0') + ':00';
 }
 
-// Zdjęcie protokołu przy tworzeniu nowego klienta (pierwszy serwis) - osobne od głównego formularza serwisu
-let newClientPhotoData = null;
-
-function handleNewClientPhoto(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    compressImage(e.target.result, (compressed) => {
-      newClientPhotoData = compressed;
-      const preview = document.getElementById('fProtoPreview');
-      preview.innerHTML = `<img src="${newClientPhotoData}" style="max-height:220px;width:100%;object-fit:contain;border-radius:8px">`;
-      const removeBtn = document.getElementById('fProtoRemoveBtn');
-      if (removeBtn) removeBtn.style.display = 'flex';
-    });
-  };
-  reader.readAsDataURL(file);
-}
-
-function removeNewClientPhoto() {
-  newClientPhotoData = null;
-  const preview = document.getElementById('fProtoPreview');
-  if (preview) preview.innerHTML = `<div class="proto-placeholder"><div class="pi">📄</div><div class="pt">Dodaj zdjęcie protokołu</div></div>`;
-  const removeBtn = document.getElementById('fProtoRemoveBtn');
-  if (removeBtn) removeBtn.style.display = 'none';
-  const input = document.getElementById('fProtoInput');
-  if (input) input.value = '';
-  const cam = document.getElementById('fProtoCamera');
-  if (cam) cam.value = '';
-}
-
-function resetNewClientServiceForm() {
-  newClientPhotoData = null;
-  document.getElementById('fServiceType').value = 'konserwacja';
-  document.getElementById('fServiceTypeOther').value = '';
-  document.getElementById('fServiceTypeOtherWrap').style.display = 'none';
-  document.getElementById('fServiceDesc').value = '';
-  document.getElementById('fServiceCost').value = '';
-  document.getElementById('fServiceParts').value = '';
-  document.getElementById('fServiceNotes').value = '';
-  removeNewClientPhoto();
-}
-
 // Scala dwie listy historii serwisów tego samego klienta (np. z telefonu i komputera) bez duplikatów
 function mergeServiceHistories(a, b) {
   const map = new Map();
@@ -3509,8 +3419,6 @@ function openAddClient() {
   });
   document.getElementById('fInterval').value = '12';
   setClientType('osoba');
-  resetNewClientServiceForm();
-  document.getElementById('firstServiceSection').style.display = '';
   openModal('modalClient');
 }
 
@@ -3539,7 +3447,6 @@ function openEditClient(id) {
   document.getElementById('fNip').value = c.nip || '';
   document.getElementById('fCompanyName').value = c.companyName || '';
   setClientType(c.clientType || 'osoba');
-  document.getElementById('firstServiceSection').style.display = 'none';
   openModal('modalClient');
 }
 
@@ -3644,36 +3551,14 @@ function saveClient() {
   } else {
     data.id = genId();
     data.createdAt = new Date().toISOString();
-
-    // Jeśli wpisano dane pierwszego serwisu - utwórz pełny wpis w historii (zamiast podwójnej roboty)
-    const sDesc = document.getElementById('fServiceDesc').value.trim();
-    const sCost = document.getElementById('fServiceCost').value.trim();
-    const sParts = document.getElementById('fServiceParts').value.trim();
-    const sNotes = document.getElementById('fServiceNotes').value.trim();
-    const hasServiceData = sDesc || sCost || sParts || sNotes || newClientPhotoData || data.lastService;
-
-    if (hasServiceData) {
-      const firstServiceDate = data.lastService || localDateStr(new Date());
-      data.services = [{
-        id: genId(),
-        date: firstServiceDate,
-        time: nextAvailableServiceTime(firstServiceDate, null),
-        type: document.getElementById('fServiceType').value || 'konserwacja',
-        typeOther: document.getElementById('fServiceType').value === 'inne' ? document.getElementById('fServiceTypeOther').value.trim() : '',
-        desc: sDesc,
-        cost: sCost,
-        parts: sParts,
-        notes: sNotes,
-        photo: newClientPhotoData || null
-      }];
-    } else {
-      data.services = [];
-    }
+    data.services = [];
 
     clients.push(data);
-    showToast('Klient dodany!');
+    save();
+    showToast('Klient dodany! Możesz teraz dodać mu serwis.');
     closeModal('modalClient');
-    renderClients();
+    showDetail(data.id);
+    return;
   }
   save();
 }
@@ -5999,6 +5884,7 @@ function removeServicePart(idx) {
 }
 
 
+
 // ── CRUD magazynu ──
 function openAddPart() {
   editingPartId = null;
@@ -6392,6 +6278,19 @@ async function geocodeAddress(street, city) {
   return null;
 }
 
+async function geocodeFreeText(text) {
+  const query = encodeURIComponent(text.includes('Polska') ? text : `${text}, Polska`);
+  try {
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=pl`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch (e) {
+    console.log('Geocode error', e);
+  }
+  return null;
+}
+
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -6531,38 +6430,71 @@ function renderToScheduleList() {
 
 let toScheduleMapInstance = null;
 
+let currentTsMapEntryId = null;
+
 async function openToScheduleMap(entryId) {
   const entry = toScheduleEntries.find(x => x.id === entryId);
   if (!entry) return;
-  if (!entry.clientId) {
-    showToast('Ta osoba nie ma zapisanego adresu (dodana ręcznie) - nie można pokazać jej na mapie', true);
-    return;
-  }
-  const c = clients.find(x => x.id === entry.clientId);
-  if (!c || !c.street || !c.city) {
-    showToast('Ten klient nie ma pełnego adresu', true);
-    return;
-  }
+  currentTsMapEntryId = entryId;
 
-  showToast('🔍 Szukam adresu na mapie...');
-  if (!c.lat || !c.lng) {
-    const coords = await geocodeAddress(c.street, c.city);
-    if (!coords) {
-      showToast('Nie udało się znaleźć tego adresu na mapie', true);
-      return;
-    }
-    c.lat = coords.lat; c.lng = coords.lng;
-    save();
-  }
-
-  document.getElementById('toScheduleMapSubtitle').textContent = `${entry.name} · ${c.street}, ${c.city}`;
+  const c = entry.clientId ? clients.find(x => x.id === entry.clientId) : null;
+  document.getElementById('toScheduleMapSubtitle').textContent = entry.name;
+  document.getElementById('tsMapAddressInput').value = entry.manualAddress || (c ? [c.street, c.city].filter(Boolean).join(', ') : '');
   openModal('modalToScheduleMap');
 
+  // Ustal lokalizację: najpierw ręcznie ustawiona wcześniej, potem adres klienta z bazy
+  let lat = entry.lat, lng = entry.lng;
+  if ((!lat || !lng) && c && c.street && c.city) {
+    showToast('🔍 Szukam adresu na mapie...');
+    if (c.lat && c.lng) {
+      lat = c.lat; lng = c.lng;
+    } else {
+      const coords = await geocodeAddress(c.street, c.city);
+      if (coords) { c.lat = coords.lat; c.lng = coords.lng; save(); lat = coords.lat; lng = coords.lng; }
+    }
+  }
+
+  if (!lat || !lng) {
+    const cont = document.getElementById('toScheduleMapContainer');
+    if (toScheduleMapInstance) { toScheduleMapInstance.remove(); toScheduleMapInstance = null; }
+    cont.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center';
+    cont.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Brak zapisanego adresu. Wpisz przybliżony adres powyżej i dotknij "Szukaj".</div>';
+    return;
+  }
+
+  entry.lat = lat; entry.lng = lng;
+  saveToScheduleEntries();
+  await renderToScheduleMapWithLocation(entry, lat, lng);
+}
+
+async function searchTsMapAddress() {
+  const entry = toScheduleEntries.find(x => x.id === currentTsMapEntryId);
+  if (!entry) return;
+  const text = document.getElementById('tsMapAddressInput').value.trim();
+  if (!text) {
+    showToast('Wpisz adres do wyszukania', true);
+    return;
+  }
+  showToast('🔍 Szukam adresu...');
+  const coords = await geocodeFreeText(text);
+  if (!coords) {
+    showToast('Nie udało się znaleźć tego adresu', true);
+    return;
+  }
+  entry.lat = coords.lat;
+  entry.lng = coords.lng;
+  entry.manualAddress = text;
+  saveToScheduleEntries();
+  await renderToScheduleMapWithLocation(entry, coords.lat, coords.lng);
+  showToast('✅ Pinezka dodana!');
+}
+
+async function renderToScheduleMapWithLocation(entry, lat, lng) {
   // Zbierz klientów z już zaplanowanymi wizytami w najbliższych 60 dniach
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const nearbyAppointments = [];
   for (const a of appointments) {
-    if (!a.clientId || a.clientId === c.id) continue;
+    if (!a.clientId || a.clientId === entry.clientId) continue;
     const d = new Date(a.date);
     const diffDays = Math.round((d - now) / 86400000);
     if (diffDays < 0 || diffDays > 60) continue;
@@ -6577,10 +6509,10 @@ async function openToScheduleMap(entryId) {
   }
   save();
 
-  setTimeout(() => renderToScheduleMap(c, entry.name, nearbyAppointments), 60);
+  setTimeout(() => renderToScheduleMap(lat, lng, entry.name, nearbyAppointments), 60);
 }
 
-function renderToScheduleMap(mainClient, mainName, nearbyAppointments) {
+function renderToScheduleMap(mainLat, mainLng, mainName, nearbyAppointments) {
   const container = document.getElementById('toScheduleMapContainer');
   if (!container || typeof L === 'undefined') return;
 
@@ -6588,15 +6520,18 @@ function renderToScheduleMap(mainClient, mainName, nearbyAppointments) {
     toScheduleMapInstance.remove();
     toScheduleMapInstance = null;
   }
+  container.innerHTML = '';
+  container.removeAttribute('style');
+  container.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)';
 
-  const allPoints = [[mainClient.lat, mainClient.lng], ...nearbyAppointments.map(x => [x.client.lat, x.client.lng])];
+  const allPoints = [[mainLat, mainLng], ...nearbyAppointments.map(x => [x.client.lat, x.client.lng])];
   toScheduleMapInstance = L.map(container, { attributionControl: false }).fitBounds(allPoints, { padding: [30, 30] });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '© OpenStreetMap'
   }).addTo(toScheduleMapInstance);
 
-  L.circleMarker([mainClient.lat, mainClient.lng], { radius: 11, color: '#fff', weight: 2, fillColor: '#f97316', fillOpacity: 0.95 })
+  L.circleMarker([mainLat, mainLng], { radius: 11, color: '#fff', weight: 2, fillColor: '#f97316', fillOpacity: 0.95 })
     .addTo(toScheduleMapInstance)
     .bindPopup(`<b>${mainName}</b><br>Do umówienia`)
     .openPopup();
@@ -6962,7 +6897,7 @@ function renderReorderList() {
     return;
   }
   listEl.innerHTML = low.map(p => {
-    const badgeColor = p.qty <= 0 ? 'var(--red)' : 'var(--accent)';
+    const badgeColor = p.qty <= 0 ? 'var(--red)' : 'var(--amber)';
     return `<div style="display:flex;align-items:center;gap:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer" onclick="toggleReorderItem('${p.id}')">
       <div style="width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;${selectedReorderIds.has(p.id) ? `background:var(--accent);color:#fff` : `border:2px solid var(--border);color:transparent`}">✓</div>
       <div style="flex:1;min-width:0">
