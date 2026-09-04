@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-99 (mapa: podgląd wszystkich "Do umówienia" naraz)
+    Wersja: 2026-07-12-100 (mapa: usuwanie pinezki, wybór z kilku podobnych adresów, naprawa długiego przytrzymania)
   </div>
 </div>
 
@@ -2114,13 +2114,17 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal-title">📅 Zaplanuj wg lokalizacji</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:14px" id="toScheduleMapSubtitle"></div>
 
-  <div id="tsMapSearchRow" style="display:flex;gap:8px;margin-bottom:14px">
+  <div id="tsMapSearchRow" style="display:flex;gap:8px;margin-bottom:10px">
     <input class="form-input" id="tsMapAddressInput" type="text" placeholder="Wpisz przybliżony adres (np. ulica, miasto)" style="flex:1">
     <button class="btn btn-primary" style="width:auto;padding:0 18px" onclick="searchTsMapAddress()">🔍 Szukaj</button>
   </div>
+  <div id="tsMapCandidatesList" style="margin-bottom:10px"></div>
 
   <div id="toScheduleMapContainer" style="height:340px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:20px">Wpisz adres powyżej i dotknij "Szukaj", żeby dodać pinezkę.</div>
-  <button class="btn btn-secondary" onclick="openTsMapFullscreen()" style="margin-bottom:14px">🔍 Powiększ mapę (pełny ekran)</button>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="btn btn-secondary" style="flex:1" onclick="openTsMapFullscreen()">🔍 Powiększ mapę</button>
+    <button class="btn btn-secondary" id="tsMapRemovePinBtn" style="flex:1;display:none;border-color:var(--red)44;color:var(--red)" onclick="removeTsMapPin()">🗑️ Usuń pinezkę</button>
+  </div>
   <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:var(--muted)">
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:4px"></span><span id="tsMapLegendMain">Ta osoba (do umówienia)</span></div>
     <div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:4px"></span>Już zaplanowane wizyty</div>
@@ -6301,17 +6305,17 @@ async function geocodeAddress(street, city) {
   return null;
 }
 
-async function geocodeFreeText(text) {
+async function geocodeFreeTextMulti(text) {
   const query = encodeURIComponent(text.includes('Polska') ? text : `${text}, Polska`);
   try {
-    const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=pl`);
-    if (!resp.ok) return null;
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=5&countrycodes=pl&addressdetails=1`);
+    if (!resp.ok) return [];
     const data = await resp.json();
-    if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    return (data || []).map(d => ({ lat: parseFloat(d.lat), lng: parseFloat(d.lon), displayName: d.display_name }));
   } catch (e) {
     console.log('Geocode error', e);
+    return [];
   }
-  return null;
 }
 
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -6500,6 +6504,8 @@ async function openAllToScheduleMap() {
   }
   currentTsMapEntryId = null;
   currentTsAllEntries = withLocation;
+  document.getElementById('tsMapRemovePinBtn').style.display = 'none';
+  document.getElementById('tsMapCandidatesList').innerHTML = '';
   document.getElementById('toScheduleMapSubtitle').textContent = `${withLocation.length} ${withLocation.length === 1 ? 'osoba' : 'osób'} z ustawioną lokalizacją`;
   document.getElementById('tsMapLegendMain').textContent = 'Do umówienia';
   document.getElementById('tsMapSearchRow').style.display = 'none';
@@ -6560,6 +6566,8 @@ function renderAllToScheduleMap(containerId, entries, nearbyAppointments, isFull
 async function openToScheduleMap(entryId) {
   document.getElementById('tsMapSearchRow').style.display = '';
   document.getElementById('tsMapLegendMain').textContent = 'Ta osoba (do umówienia)';
+  document.getElementById('tsMapRemovePinBtn').style.display = '';
+  document.getElementById('tsMapCandidatesList').innerHTML = '';
   currentTsAllEntries = null;
   const entry = toScheduleEntries.find(x => x.id === entryId);
   if (!entry) return;
@@ -6604,17 +6612,55 @@ async function searchTsMapAddress() {
     return;
   }
   showToast('🔍 Szukam adresu...');
-  const coords = await geocodeFreeText(text);
-  if (!coords) {
+  const candidates = await geocodeFreeTextMulti(text);
+  if (!candidates.length) {
     showToast('Nie udało się znaleźć tego adresu', true);
+    document.getElementById('tsMapCandidatesList').innerHTML = '';
     return;
   }
-  entry.lat = coords.lat;
-  entry.lng = coords.lng;
-  entry.manualAddress = text;
+  if (candidates.length === 1) {
+    await pickTsMapCandidate(candidates[0].lat, candidates[0].lng, text);
+    return;
+  }
+  // Kilka pasujących miejsc (np. dwie miejscowości o tej samej nazwie) - niech Adam wybierze właściwe
+  document.getElementById('tsMapCandidatesList').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Znaleziono ${candidates.length} pasujących miejsc - wybierz właściwe:</div>
+    ${candidates.map(c => `
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px" onclick="pickTsMapCandidate(${c.lat}, ${c.lng}, '${c.displayName.replace(/'/g, "\\'")}')">
+        📍 ${c.displayName}
+      </div>
+    `).join('')}
+  `;
+}
+
+async function pickTsMapCandidate(lat, lng, displayName) {
+  const entry = toScheduleEntries.find(x => x.id === currentTsMapEntryId);
+  if (!entry) return;
+  entry.lat = lat;
+  entry.lng = lng;
+  entry.manualAddress = displayName;
   saveToScheduleEntries();
-  await renderToScheduleMapWithLocation(entry, coords.lat, coords.lng);
+  document.getElementById('tsMapCandidatesList').innerHTML = '';
+  await renderToScheduleMapWithLocation(entry, lat, lng);
   showToast('✅ Pinezka dodana!');
+}
+
+function removeTsMapPin() {
+  const entry = toScheduleEntries.find(x => x.id === currentTsMapEntryId);
+  if (!entry) return;
+  if (!confirm('Czy na pewno usunąć pinezkę tej osoby z mapy?')) return;
+  delete entry.lat;
+  delete entry.lng;
+  delete entry.manualAddress;
+  saveToScheduleEntries();
+  document.getElementById('tsMapAddressInput').value = '';
+  document.getElementById('tsMapCandidatesList').innerHTML = '';
+  document.getElementById('tsMapRemovePinBtn').style.display = 'none';
+  if (toScheduleMapInstance) { toScheduleMapInstance.remove(); toScheduleMapInstance = null; }
+  const cont = document.getElementById('toScheduleMapContainer');
+  cont.style.cssText = 'height:340px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center';
+  cont.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Brak zapisanego adresu. Wpisz przybliżony adres powyżej i dotknij "Szukaj".</div>';
+  showToast('🗑️ Pinezka usunięta');
 }
 
 async function renderToScheduleMapWithLocation(entry, lat, lng) {
@@ -6673,11 +6719,51 @@ function renderToScheduleMap(containerId, mainLat, mainLng, mainName, nearbyAppo
       .bindPopup(`<b>${client.name}</b><br>Wizyta: ${formatDate(date)}`);
   });
 
-  // Długie przytrzymanie (na telefonie odpowiednik kliknięcia prawym na komputerze) - ręczne ustawienie pinezki
-  mapInstance.on('contextmenu', (e) => handleTsMapLongPress(e.latlng));
+  // Długie przytrzymanie (na telefonie) - ręczne ustawienie pinezki. Własna obsługa dotyku,
+  // bo samo zdarzenie "contextmenu" z Leaflet nie zawsze poprawnie reaguje na dotyk na Androidzie.
+  attachLongPressHandler(mapInstance);
 
   if (isFullscreen) tsMapFullscreenInstance = mapInstance;
   else toScheduleMapInstance = mapInstance;
+}
+
+function attachLongPressHandler(mapInstance) {
+  const container = mapInstance.getContainer();
+  let pressTimer = null;
+  let startPos = null;
+
+  const clearPress = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    startPos = null;
+  };
+
+  const startPress = (clientX, clientY) => {
+    startPos = { x: clientX, y: clientY };
+    pressTimer = setTimeout(() => {
+      const rect = container.getBoundingClientRect();
+      const latlng = mapInstance.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
+      handleTsMapLongPress(latlng);
+      pressTimer = null;
+    }, 550);
+  };
+
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { clearPress(); return; }
+    startPress(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+
+  container.addEventListener('touchmove', (e) => {
+    if (!startPos || !e.touches[0]) return;
+    const dx = Math.abs(e.touches[0].clientX - startPos.x);
+    const dy = Math.abs(e.touches[0].clientY - startPos.y);
+    if (dx > 10 || dy > 10) clearPress(); // to przesuwanie mapy, nie przytrzymanie w miejscu
+  }, { passive: true });
+
+  container.addEventListener('touchend', clearPress);
+  container.addEventListener('touchcancel', clearPress);
+
+  // Na komputerze - klik prawym (odpowiednik przytrzymania)
+  mapInstance.on('contextmenu', (e) => handleTsMapLongPress(e.latlng));
 }
 
 function handleTsMapLongPress(latlng) {
