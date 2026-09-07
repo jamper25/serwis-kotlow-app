@@ -1630,7 +1630,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-101 (pytanie o usunięcie z "Do umówienia" po dodaniu serwisu)
+    Wersja: 2026-07-12-103 (ikonki dzwoń/SMS - większe przyciski zamiast linków)
   </div>
 </div>
 
@@ -2930,6 +2930,7 @@ function showTab(tab) {
   });
   const fab = document.getElementById('fab');
   if (fab) fab.style.display = (tab === 'klienci') ? 'flex' : 'none';
+  window.scrollTo(0, 0);
   if (tab === 'kalendarz') renderCalendar();
   if (tab === 'wizyty') { renderWizCalendar(); renderWizGrid(); }
   if (tab === 'pulpit') renderPulpit();
@@ -3432,6 +3433,7 @@ function showDetail(id) {
   document.getElementById('sec-detail').classList.add('active');
   document.getElementById('fab').style.display = 'none';
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  window.scrollTo(0, 0);
 }
 
 // ══════════════════════════════════════════════════
@@ -6493,7 +6495,11 @@ function renderToScheduleList() {
     <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px">
       <div style="flex:1;${e.clientId ? 'cursor:pointer' : ''}" ${e.clientId ? `onclick="closeModal('modalToSchedule');showDetail('${e.clientId}')"` : ''}>
         <div style="font-weight:700">${e.name}</div>
-        ${e.phone ? `<div style="font-size:12px;color:var(--muted)">${e.phone}</div>` : ''}
+        ${e.phone ? `<div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-top:4px">
+          <span>${e.phone}</span>
+          <button onclick="event.stopPropagation();window.location='tel:${e.phone}'" style="background:none;border:none;color:var(--green);font-size:22px;cursor:pointer;padding:8px">📞</button>
+          <button onclick="event.stopPropagation();window.location='sms:${e.phone}'" style="background:none;border:none;color:var(--blue);font-size:22px;cursor:pointer;padding:8px">💬</button>
+        </div>` : ''}
         ${e.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${e.note}</div>` : ''}
       </div>
       ${!e.clientId ? `<button onclick="editToScheduleEntry('${e.id}')" style="background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:4px 8px">✏️</button>` : ''}
