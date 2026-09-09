@@ -1389,10 +1389,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <button class="wk-nav-btn" onclick="wizGoToday()" style="width:100%;margin-bottom:10px">📍 Dziś</button>
   <div class="cal-grid" id="wizCalGrid"></div>
 
-  <div class="wk-nav-row" style="margin-top:12px">
-    <button class="wk-nav-btn" onclick="wizGridPrev()">‹ 3 dni</button>
+  <div style="display:flex;gap:6px;margin-top:12px;margin-bottom:2px;background:var(--surface2);border-radius:12px;padding:4px">
+    <button class="zl-mode-btn active" id="wizGrid3Btn" onclick="setWizGridDays(3)" style="flex:1">3 dni</button>
+    <button class="zl-mode-btn" id="wizGrid7Btn" onclick="setWizGridDays(7)" style="flex:1">7 dni</button>
+  </div>
+  <div class="wk-nav-row" style="margin-top:8px">
+    <button class="wk-nav-btn" id="wizGridPrevBtn" onclick="wizGridPrev()">‹</button>
     <div class="wk-nav-label" id="wizGridRangeLabel"></div>
-    <button class="wk-nav-btn" onclick="wizGridNext()">3 dni ›</button>
+    <button class="wk-nav-btn" id="wizGridNextBtn" onclick="wizGridNext()">›</button>
   </div>
   <div id="wizGrid"></div>
 </div>
@@ -1630,7 +1634,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-103 (ikonki dzwoń/SMS - większe przyciski zamiast linków)
+    Wersja: 2026-07-12-105 (Wizyty: dzwoń/SMS z Pulpitu i formularza, kalendarz od poniedziałku, przełącznik 3/7 dni)
   </div>
 </div>
 
@@ -1911,7 +1915,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <div class="form-group">
     <label class="form-label">Telefon</label>
-    <input class="form-input" id="apPhone" type="tel" placeholder="Numer telefonu">
+    <div style="display:flex;gap:6px;align-items:center">
+      <input class="form-input" id="apPhone" type="tel" placeholder="Numer telefonu" style="flex:1">
+      <button type="button" onclick="callApPhone()" style="background:none;border:1px solid var(--border);border-radius:10px;color:var(--green);font-size:20px;cursor:pointer;padding:10px 12px">📞</button>
+      <button type="button" onclick="smsApPhone()" style="background:none;border:1px solid var(--border);border-radius:10px;color:var(--blue);font-size:20px;cursor:pointer;padding:10px 12px">💬</button>
+    </div>
   </div>
 
   <div class="form-group">
@@ -3285,12 +3293,14 @@ function renderPulpit() {
     const client = a.clientId ? clients.find(c => c.id === a.clientId) : null;
     const label = client ? client.name : (a.name || 'Wizyta');
     const phone = client ? client.phone : a.phone;
-    return `<div class="cal-event" onclick="showTab('wizyty');selectWizDay('${a.date}')">
+    return `<div class="cal-event" onclick="showTab('wizyty');selectWizDay('${a.date}')" style="cursor:pointer">
       <div class="cal-event-dot" style="background:var(--blue)"></div>
       <div style="flex:1">
         <div class="cal-event-name">${label}</div>
-        <div class="cal-event-date">${formatDate(a.date)} · godz. ${a.time}${phone ? ' · 📞 ' + phone : ''}</div>
+        <div class="cal-event-date">${formatDate(a.date)} · godz. ${a.time}${phone ? ` · ${phone}` : ''}</div>
       </div>
+      ${phone ? `<button onclick="event.stopPropagation();window.location='tel:${phone}'" style="background:none;border:none;color:var(--green);font-size:22px;cursor:pointer;padding:8px">📞</button>
+      <button onclick="event.stopPropagation();window.location='sms:${phone}'" style="background:none;border:none;color:var(--blue);font-size:22px;cursor:pointer;padding:8px">💬</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -3817,7 +3827,7 @@ function selectWizDay(dateStr) {
   selectedWizDay = dateStr;
   wizGridStart = new Date(dateStr);
   wizGridStart.setHours(0, 0, 0, 0);
-  wizGridStart.setDate(wizGridStart.getDate() - 1); // wyśrodkuj wybrany dzień w siatce 3-dniowej
+  wizGridStart.setDate(wizGridStart.getDate() - Math.floor(wizGridDays / 2)); // wyśrodkuj wybrany dzień w siatce
   renderWizCalendar();
   renderWizGrid();
 }
@@ -3833,10 +3843,10 @@ function renderWizCalendar() {
   const apptDates = {};
   appointments.forEach(a => { (apptDates[a.date] = apptDates[a.date] || []).push(a); });
 
-  const dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
+  const dayNames = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
   let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
 
-  const start = firstDay;
+  const start = firstDay === 0 ? 6 : firstDay - 1;
   for (let i = 0; i < start; i++) html += `<div class="cal-day other"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -3886,8 +3896,17 @@ function buildGridSkeleton(gridElId, days, getItemsFn, emptyOnclickFn) {
 }
 
 let wizGridStart;
-function wizGridPrev() { wizGridStart.setDate(wizGridStart.getDate() - 3); renderWizGrid(); }
-function wizGridNext() { wizGridStart.setDate(wizGridStart.getDate() + 3); renderWizGrid(); }
+let wizGridDays = parseInt(localStorage.getItem('wiz_grid_days') || '3');
+function wizGridPrev() { wizGridStart.setDate(wizGridStart.getDate() - wizGridDays); renderWizGrid(); }
+function wizGridNext() { wizGridStart.setDate(wizGridStart.getDate() + wizGridDays); renderWizGrid(); }
+
+function setWizGridDays(n) {
+  wizGridDays = n;
+  localStorage.setItem('wiz_grid_days', String(n));
+  document.getElementById('wizGrid3Btn').classList.toggle('active', n === 3);
+  document.getElementById('wizGrid7Btn').classList.toggle('active', n === 7);
+  renderWizGrid();
+}
 
 const AP_STATUS_COLORS = { zaplanowana: 'var(--accent)', w_trakcie: 'var(--blue)', wykonana: 'var(--green)' };
 const AP_STATUS_ICONS = { zaplanowana: '📅', w_trakcie: '🚐', wykonana: '✅' };
@@ -3903,9 +3922,11 @@ function getWizItemsForDate(dateStr) {
 }
 
 function renderWizGrid() {
-  const days = [0, 1, 2].map(i => { const d = new Date(wizGridStart); d.setDate(d.getDate() + i); return d; });
-  const s0 = localDateStr(days[0]), s2 = localDateStr(days[2]);
-  document.getElementById('wizGridRangeLabel').textContent = `${formatDate(s0)} – ${formatDate(s2)}`;
+  document.getElementById('wizGrid3Btn').classList.toggle('active', wizGridDays === 3);
+  document.getElementById('wizGrid7Btn').classList.toggle('active', wizGridDays === 7);
+  const days = Array.from({ length: wizGridDays }, (_, i) => { const d = new Date(wizGridStart); d.setDate(d.getDate() + i); return d; });
+  const s0 = localDateStr(days[0]), sLast = localDateStr(days[days.length - 1]);
+  document.getElementById('wizGridRangeLabel').textContent = `${formatDate(s0)} – ${formatDate(sLast)}`;
   buildGridSkeleton('wizGrid', days, getWizItemsForDate, (d, t) => `openAppointmentForm('${d}','${t}',null)`);
 }
 
@@ -4139,6 +4160,18 @@ function pickApClient(id) {
   document.getElementById('apName').value = '';
   document.getElementById('apClientSearch').value = c?.name || '';
   renderApClientList(c?.name || '');
+}
+
+function callApPhone() {
+  const phone = document.getElementById('apPhone').value.trim();
+  if (!phone) { showToast('Brak numeru telefonu', true); return; }
+  window.location = 'tel:' + phone;
+}
+
+function smsApPhone() {
+  const phone = document.getElementById('apPhone').value.trim();
+  if (!phone) { showToast('Brak numeru telefonu', true); return; }
+  window.location = 'sms:' + phone;
 }
 
 function saveAppointment() {
@@ -6411,6 +6444,7 @@ function editToScheduleEntry(entryId) {
   document.getElementById('tsNote').value = e.note || '';
   document.getElementById('tsAddFormWrap').style.display = '';
   document.getElementById('tsAddBtn').textContent = '💾 Zapisz zmiany';
+  document.querySelector('#modalToSchedule .modal').scrollTo(0, 0);
   showToast('Edytujesz wpis - zmień dane i zapisz');
 }
 
