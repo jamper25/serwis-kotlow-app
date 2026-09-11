@@ -1634,7 +1634,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-105 (Wizyty: dzwoń/SMS z Pulpitu i formularza, kalendarz od poniedziałku, przełącznik 3/7 dni)
+    Wersja: 2026-07-12-106 (protokół: email klienta kopiowany do schowka przy wysyłce)
   </div>
 </div>
 
@@ -5376,9 +5376,17 @@ async function confirmGenerateProtocol() {
 
   saveProtocolCopyLocally(fileName, pdfBase64);
 
+  // Kopiujemy email klienta do schowka - Android/iOS nie pozwala jednocześnie
+  // wypełnić pola "Do" ORAZ załączyć plik przy generycznym udostępnianiu, więc
+  // to najlepsze dostępne obejście: wklejasz zamiast wpisywać ręcznie
+  const clientEmail = document.getElementById('protocolClientEmail').value.trim() || c.email;
+  if (clientEmail) {
+    try { await navigator.clipboard.writeText(clientEmail); } catch (e) { console.log('clipboard error', e); }
+  }
+
   closeModal('modalProtocolGenerate');
   const ok = await shareBinaryFile(fileName, pdfBase64, 'Wyślij protokół klientowi');
-  if (ok) showToast('✅ Protokół gotowy do wysłania!');
+  if (ok) showToast(clientEmail ? `✅ Gotowe! Email (${clientEmail}) skopiowany - wklej w polu odbiorcy` : '✅ Protokół gotowy do wysłania!');
 }
 
 async function saveProtocolCopyLocally(fileName, base64) {
