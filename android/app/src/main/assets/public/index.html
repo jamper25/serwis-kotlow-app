@@ -1634,7 +1634,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-110 (Magazyn: wspólny moduł Raporty - remanent + dobowy/tygodniowy)
+    Wersja: 2026-07-12-112 (Do umówienia: dodawanie dostępne też z Pulpitu)
   </div>
 </div>
 
@@ -2058,9 +2058,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="cal-month" id="reportYearLabel"></div>
     <button class="cal-nav" onclick="reportNextYear()">›</button>
   </div>
-  <div style="text-align:center;margin:12px 0 20px">
+  <div style="text-align:center;margin:12px 0 12px">
     <div style="font-size:28px;font-weight:800;font-family:var(--mono);color:var(--green)" id="reportYearTotal">0 zł</div>
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Suma za cały rok</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--green);font-size:18px" id="reportYearLabor">0 zł</div><div class="zl-sum-label">Dochód robocizna</div></div>
+    <div class="zl-sum-card"><div class="zl-sum-num" style="color:var(--blue);font-size:18px" id="reportYearParts">0 zł</div><div class="zl-sum-label">Dochód części</div></div>
   </div>
   <div id="reportMonthsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
   <button class="btn btn-secondary" onclick="closeModal('modalReport')">Zamknij</button>
@@ -2085,6 +2089,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal-handle"></div>
   <div class="modal-title">📌 Do umówienia</div>
   <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Osoby, które musisz jeszcze zadzwonić i umówić na wizytę.</div>
+
+  <button class="io-btn" id="tsShowAddBtn" onclick="document.getElementById('tsAddFormWrap').style.display='';this.style.display='none'" style="display:none;margin-bottom:14px;width:100%;background:var(--green)">
+    <span class="io-icon">➕</span> Dodaj nowego
+  </button>
 
   <div id="tsAddFormWrap">
     <div class="form-group">
@@ -6511,6 +6519,7 @@ function openToScheduleModal(listOnly) {
   document.getElementById('tsNote').value = '';
   document.getElementById('tsAddBtn').textContent = '➕ Dodaj do listy';
   document.getElementById('tsAddFormWrap').style.display = listOnly ? 'none' : '';
+  document.getElementById('tsShowAddBtn').style.display = listOnly ? '' : 'none';
   renderToScheduleList();
   openModal('modalToSchedule');
 }
@@ -6526,6 +6535,7 @@ function editToScheduleEntry(entryId) {
   document.getElementById('tsPhone').value = e.phone || '';
   document.getElementById('tsNote').value = e.note || '';
   document.getElementById('tsAddFormWrap').style.display = '';
+  document.getElementById('tsShowAddBtn').style.display = 'none';
   document.getElementById('tsAddBtn').textContent = '💾 Zapisz zmiany';
   document.querySelector('#modalToSchedule .modal').scrollTo(0, 0);
   showToast('Edytujesz wpis - zmień dane i zapisz');
@@ -7227,28 +7237,41 @@ function reportNextYear() { reportYear++; renderMonthlyReport(); }
 
 function renderMonthlyReport() {
   const monthNames = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
-  const monthTotals = new Array(12).fill(0);
-  let yearTotal = 0;
+  const toNum = v => parseFloat(String(v || '').replace(',', '.')) || 0;
+  const fmt = n => (Math.round(n * 100) / 100) + ' zł';
+  const monthLabor = new Array(12).fill(0);
+  const monthParts = new Array(12).fill(0);
+  let yearLabor = 0, yearParts = 0;
 
   clients.forEach(c => {
     (c.services || []).forEach(s => {
       const d = new Date(s.date);
       if (d.getFullYear() === reportYear) {
-        const kwota = (+(s.cost||0)) + (+(s.parts||0));
-        monthTotals[d.getMonth()] += kwota;
-        yearTotal += kwota;
+        const labor = toNum(s.cost);
+        const parts = toNum(s.parts);
+        monthLabor[d.getMonth()] += labor;
+        monthParts[d.getMonth()] += parts;
+        yearLabor += labor;
+        yearParts += parts;
       }
     });
   });
 
   document.getElementById('reportYearLabel').textContent = reportYear;
-  document.getElementById('reportYearTotal').textContent = yearTotal + ' zł';
-  document.getElementById('reportMonthsList').innerHTML = monthNames.map((m, i) => `
+  document.getElementById('reportYearTotal').textContent = fmt(yearLabor + yearParts);
+  document.getElementById('reportYearLabor').textContent = fmt(yearLabor);
+  document.getElementById('reportYearParts').textContent = fmt(yearParts);
+  document.getElementById('reportMonthsList').innerHTML = monthNames.map((m, i) => {
+    const total = monthLabor[i] + monthParts[i];
+    return `
     <div class="cal-event">
-      <div style="flex:1"><div class="cal-event-name">${m}</div></div>
-      <div style="font-weight:700;font-family:var(--mono);color:${monthTotals[i] > 0 ? 'var(--green)' : 'var(--muted)'}">${monthTotals[i]} zł</div>
-    </div>
-  `).join('');
+      <div style="flex:1">
+        <div class="cal-event-name">${m}</div>
+        ${total > 0 ? `<div style="font-size:11px;color:var(--muted)">robocizna: ${fmt(monthLabor[i])} · części: ${fmt(monthParts[i])}</div>` : ''}
+      </div>
+      <div style="font-weight:700;font-family:var(--mono);color:${total > 0 ? 'var(--green)' : 'var(--muted)'}">${fmt(total)}</div>
+    </div>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════
