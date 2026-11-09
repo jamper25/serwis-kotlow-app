@@ -1289,6 +1289,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="filter-btn" data-filter="soon" onclick="setFilter('soon',this)">🕐 Wkrótce</button>
     <button class="filter-btn" data-filter="ok" onclick="setFilter('ok',this)">✓ OK</button>
   </div>
+  <div id="overdueRangeBox" style="display:none;background:var(--surface2);border-radius:10px;padding:10px 12px;margin:0 0 10px">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Termin serwisu w zakresie dat:</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="date" id="overdueFrom" class="form-input" style="flex:1;min-width:0" onchange="renderClients()">
+      <span style="color:var(--muted)">–</span>
+      <input type="date" id="overdueTo" class="form-input" style="flex:1;min-width:0" onchange="renderClients()">
+      <button type="button" onclick="clearOverdueRange()" style="background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer" title="Wyczyść">✕</button>
+    </div>
+    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="generateOverduePdf()">📄 Generuj PDF (<span id="overduePdfCount">0</span>)</button>
+  </div>
   <div class="client-list" id="clientList"></div>
 </div>
 
@@ -1634,7 +1644,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-113 (ceny wielu części w serwisie, drugie urządzenie klienta)
+    Wersja: 2026-07-12-114 (filtr przeterminowanych wg zakresu dat + PDF)
   </div>
 </div>
 
@@ -3388,10 +3398,158 @@ function setFilter(f, btn) {
   currentFilter = f;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const box = document.getElementById('overdueRangeBox');
+  if (box) box.style.display = f === 'overdue' ? 'block' : 'none';
   renderClients();
 }
 
-function renderClients() {
+// ── PDF: lista przeterminowanych klientów (wg filtra zakresu dat) ──
+async function generateOverduePdf() {
+  const list = getFilteredClients();
+  if (!list.length) { showToast('Brak klientów do wydrukowania', true); return; }
+  const from = document.getElementById('overdueFrom').value;
+  const to = document.getElementById('overdueTo').value;
+  const rangeTxt = (from || to) ? `Termin serwisu: ${from ? 'od ' + formatDate(from) : ''}${from && to ? ' ' : ''}${to ? 'do ' + formatDate(to) : ''}` : 'Termin serwisu: wszystkie daty';
+
+  // A4 poziomo, pełne dane klienta - tekst zawijany, nic nie jest ucinane
+  const W = 1754, H = 1240, M = 40, LH = 27, PADY = 10, HEAD_H = 44, FOOT = 60;
+  const cols = [
+    { t: 'Lp', w: 50 }, { t: 'Klient / e-mail', w: 330 }, { t: 'Telefon', w: 190 },
+    { t: 'Adres', w: 300 }, { t: 'Kocioł', w: 390 }, { t: 'Ostatni serwis', w: 160 }, { t: 'Termin', w: 254 }
+  ];
+  const meas = document.createElement('canvas').getContext('2d');
+  const wrap = (text, font, maxW) => {
+    meas.font = font;
+    const out = [];
+    String(text || '').split('\n').forEach(par => {
+      let line = '';
+      par.split(' ').forEach(w => {
+        const t = line ? line + ' ' + w : w;
+        if (meas.measureText(t).width <= maxW || !line) line = t;
+        else { out.push(line); line = w; }
+      });
+      out.push(line);
+    });
+    return out;
+  };
+  const F = '22px sans-serif', FB = 'bold 22px sans-serif', FS = '20px sans-serif';
+
+  // przygotowanie wierszy: lista [tekst, font, kolor] w każdej komórce
+  const prepared = list.map(c => {
+    const name = c.clientType === 'firma' && c.companyName ? c.companyName : (c.name || '—');
+    const due = clientDueDate(c);
+    const dl = due ? Math.round((new Date(due) - new Date()) / 86400000) : null;
+    const kotel = [];
+    const devLine = (d) => [d.serial ? 'Nr ser.: ' + d.serial : '', d.kat ? 'Nr kat.: ' + d.kat : '', d.fabryka ? 'Fabryka: ' + d.fabryka : '', d.fd ? 'FD: ' + d.fd : ''].filter(Boolean).join(' · ');
+    const addDev = (model, d) => {
+      if (model) kotel.push([model, FB, '#111']);
+      const ln = devLine(d);
+      if (ln) kotel.push([ln, FS, '#333']);
+    };
+    addDev(c.boilerModel, { serial: c.boilerSerial, kat: c.boilerKatalogowy, fabryka: c.boilerFabryka, fd: c.boilerFD });
+    (c.extraDevices || []).forEach(d => addDev(d.model || 'Urządzenie', d));
+    const klient = [[name, FB, '#111']];
+    if (c.clientType === 'firma' && c.companyName && c.name) klient.push(['Kontakt: ' + c.name, F, '#333']);
+    if (c.email) klient.push([c.email, FS, '#555']);
+    const adres = [];
+    if (c.street) adres.push([c.street, F, '#111']);
+    const cityLine = [c.zip, c.city].filter(Boolean).join(' ');
+    if (cityLine) adres.push([cityLine, F, '#111']);
+    const cells = [
+      [[String(0), F, '#111']],
+      klient,
+      [[c.phone || '—', FB, '#111']],
+      adres.length ? adres : [['—', F, '#111']],
+      kotel.length ? kotel : [['—', F, '#111']],
+      [[c.lastService ? formatDate(c.lastService) : '—', F, '#111']],
+      [[due ? formatDate(due) : '—', FB, '#111']].concat(dl !== null && dl < 0 ? [[`${Math.abs(dl)} dni po terminie`, FS, '#b00020']] : [])
+    ];
+    const wrapped = cells.map((lines, ci) => {
+      const out = [];
+      lines.forEach(([t, f, col]) => wrap(t, f, cols[ci].w - 16).forEach(l => out.push([l, f, col])));
+      return out;
+    });
+    const h = Math.max(...wrapped.map(w => w.length)) * LH + PADY * 2;
+    return { wrapped, h };
+  });
+
+  // podział na strony wg rzeczywistej wysokości wierszy
+  const firstTop = 200, nextTop = M;
+  const pages = [];
+  let cur = [], used = 0, limit = H - firstTop - HEAD_H - FOOT;
+  prepared.forEach(r => {
+    if (cur.length && used + r.h > limit) { pages.push(cur); cur = []; used = 0; limit = H - nextTop - HEAD_H - FOOT; }
+    cur.push(r); used += r.h;
+  });
+  if (cur.length) pages.push(cur);
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+  let n = 0;
+  pages.forEach((rows, pi) => {
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    ctx.textBaseline = 'top';
+    let y = nextTop;
+    if (pi === 0) {
+      ctx.fillStyle = '#111'; ctx.font = 'bold 42px sans-serif';
+      ctx.fillText('Klienci przeterminowani', M, M);
+      ctx.font = '25px sans-serif'; ctx.fillStyle = '#444';
+      ctx.fillText(`${rangeTxt}   |   Liczba klientów: ${list.length}   |   Wygenerowano: ${formatDate(localDateStr(new Date()))}`, M, M + 64);
+      y = firstTop;
+    }
+    ctx.fillStyle = '#e8e8e8'; ctx.fillRect(M, y, W - 2 * M, HEAD_H);
+    ctx.fillStyle = '#111'; ctx.font = 'bold 22px sans-serif';
+    let x = M;
+    cols.forEach(c => { ctx.fillText(c.t, x + 8, y + 10); x += c.w; });
+    y += HEAD_H;
+    rows.forEach(r => {
+      n++;
+      r.wrapped[0] = [[String(n), F, '#111']];
+      x = M;
+      r.wrapped.forEach((lines, ci) => {
+        lines.forEach(([t, f, col], li) => {
+          ctx.font = f; ctx.fillStyle = col;
+          ctx.fillText(t, x + 8, y + PADY + li * LH);
+        });
+        x += cols[ci].w;
+      });
+      y += r.h;
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(M, y); ctx.lineTo(W - M, y); ctx.stroke();
+    });
+    ctx.fillStyle = '#888'; ctx.font = '20px sans-serif';
+    ctx.fillText(`Strona ${pi + 1}/${pages.length}`, W - M - 120, H - 45);
+    if (pi > 0) pdf.addPage();
+    pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 297, 210);
+  });
+
+  const base64 = pdf.output('datauristring').split(',')[1];
+  const fileName = `przeterminowani-${localDateStr(new Date())}.pdf`;
+  const ok = await shareBinaryFile(fileName, base64, 'Lista przeterminowanych klientów');
+  if (ok) showToast(`✅ PDF gotowy (${list.length} klientów)`);
+}
+
+function clearOverdueRange() {
+  document.getElementById('overdueFrom').value = '';
+  document.getElementById('overdueTo').value = '';
+  renderClients();
+}
+
+// Data terminu serwisu klienta (YYYY-MM-DD): zaplanowany termin, a gdy go brak - ostatni serwis + 12 mies.
+function clientDueDate(c) {
+  if (c.nextService) return c.nextService;
+  if (c.lastService) {
+    const d = new Date(c.lastService);
+    d.setMonth(d.getMonth() + 12);
+    return localDateStr(d);
+  }
+  return '';
+}
+
+function getFilteredClients() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   let list = clients.filter(c => {
     const match = (c.name||'').toLowerCase().includes(q) ||
@@ -3401,13 +3559,31 @@ function renderClients() {
       (c.phone||'').includes(q);
     if (!match) return false;
     if (currentFilter === 'all') return true;
-    return getStatus(c) === currentFilter;
+    if (getStatus(c) !== currentFilter) return false;
+    if (currentFilter === 'overdue') {
+      const from = document.getElementById('overdueFrom').value;
+      const to = document.getElementById('overdueTo').value;
+      if (from || to) {
+        const due = clientDueDate(c);
+        if (!due) return false;
+        if (from && due < from) return false;
+        if (to && due > to) return false;
+      }
+    }
+    return true;
   });
 
   list.sort((a,b) => {
     const order = {overdue:0, soon:1, new:2, ok:3};
     return order[getStatus(a)] - order[getStatus(b)];
   });
+  return list;
+}
+
+function renderClients() {
+  const list = getFilteredClients();
+  const pdfCnt = document.getElementById('overduePdfCount');
+  if (pdfCnt) pdfCnt.textContent = list.length;
 
   const el = document.getElementById('clientList');
   if (!list.length) {
