@@ -1644,7 +1644,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
 
   <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px 0;font-family:var(--mono)">
-    Wersja: 2026-07-12-114 (filtr przeterminowanych wg zakresu dat + PDF)
+    Wersja: 2026-07-12-115 (zamówienie przy braku części, edycja historii części, mapa 7 km z kolorami i dymkami)
   </div>
 </div>
 
@@ -2117,6 +2117,38 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div id="locationMapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
   <div id="locationGroupsList"></div>
   <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalLocationGroups')">Zamknij</button>
+</div>
+</div>
+
+<!-- ══ MODAL: EDYCJA WPISU HISTORII ══ -->
+<div class="modal-overlay" id="modalHistEdit" style="z-index:10001">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">✏️ Edytuj wpis historii</div>
+  <div style="font-weight:600" id="hePart"></div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="heType"></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Data</label><input class="form-input" id="heDate" type="date"></div>
+    <div class="form-group"><label class="form-label">Ilość</label><input class="form-input" id="heQty" type="number" min="0"></div>
+  </div>
+  <div class="form-group"><label class="form-label">Notatka</label><input class="form-input" id="heNote"></div>
+  <div style="font-size:11px;color:var(--muted)">Zmiana ilości poprawi też stan magazynowy części. Każda edycja zostaje zapisana pod wpisem.</div>
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="saveHistEdit()">💾 Zapisz zmianę</button>
+    <button class="btn btn-secondary" onclick="closeModal('modalHistEdit')">Anuluj</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: MAPA KLIENTA I OKOLICA ══ -->
+<div class="modal-overlay" id="modalClientMap">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="cmTitle">🗺 Klienci w okolicy</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Inni klienci w promieniu 7 km. 🟠 przeterminowany · 🟢 przegląd wykonany w ostatnich 3 miesiącach · 🔵 pozostali. Dotknij kropki, żeby zobaczyć dane klienta.</div>
+  <div id="cmMapContainer" style="height:300px;border-radius:10px;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
+  <div id="cmList"></div>
+  <button class="btn btn-secondary" style="margin-top:14px" onclick="closeModal('modalClientMap')">Zamknij</button>
 </div>
 </div>
 
@@ -3657,6 +3689,7 @@ function showDetail(id) {
       ${c.phone ? `<button class="action-btn call" onclick="window.location='tel:${c.phone}'">📞 Zadzwoń</button>` : ''}
       ${c.phone ? `<button class="action-btn" style="border-color:var(--green)44;color:var(--green);background:var(--green)11" onclick="sendSMS('${c.id}')">💬 SMS</button>` : ''}
       ${(c.street || c.city) ? `<button class="action-btn" style="border-color:var(--blue)44;color:var(--blue);background:var(--blue)11" onclick="navigateToClient('${c.id}')">🧭 Nawiguj</button>` : ''}
+      ${(c.street || c.city) ? `<button class="action-btn" style="border-color:var(--amber)44;color:var(--amber);background:var(--amber)11" onclick="openClientMap('${c.id}')">🗺 Mapa</button>` : ''}
       <button class="action-btn edit" onclick="openEditClient('${c.id}')">✏️ Edytuj</button>
       <button class="action-btn service" onclick="openAddService('${c.id}')">🔧 Serwis</button>
       <button class="action-btn" style="border-color:var(--red)44;color:var(--red);background:var(--red)11" onclick="deleteClientConfirm('${c.id}')">🗑 Usuń</button>
@@ -6240,6 +6273,9 @@ function deleteDevice(clientId, deviceId) {
   showDetail(c.id);
 }
 
+// Część wymaga zamówienia: stan <= minimum albo ręcznie dodana do zamówienia
+function needsReorder(p) { return p.qty <= (p.minStock || 0) || !!p.toOrder; }
+
 // ── Formularz dodawania serwisu: wybór zużytych części ──
 function filterServiceParts() {
   const q = document.getElementById('sPartSearch').value.trim().toLowerCase();
@@ -6263,6 +6299,13 @@ function addServicePart(partId) {
     return;
   }
   selectedServiceParts.push({ partId: p.id, number: p.number, name: p.name, qty: 1, priceGross: p.priceGross || 0 });
+  if ((p.qty || 0) <= 0 && !p.toOrder) {
+    if (confirm(`Części ${p.number}${p.name ? ' (' + p.name + ')' : ''} nie ma na stanie (${p.qty || 0} szt.).\n\nDodać do zamówienia?`)) {
+      p.toOrder = true;
+      saveMagazyn();
+      showToast('🛒 Dodano do zamówienia');
+    }
+  }
   document.getElementById('sPartSearch').value = '';
   document.getElementById('sPartSearchList').innerHTML = '';
   renderSelectedServiceParts();
@@ -6358,6 +6401,12 @@ function updateQtyPreview() {
   previewEl.style.color = newQty < 0 ? 'var(--red)' : 'var(--green)';
 }
 
+// Opis ostatnich edycji wpisu historii (co i kiedy zmieniono)
+function histEditsHtml(h) {
+  if (!h.edits || !h.edits.length) return '';
+  return h.edits.map(e => `<div style="font-size:11px;color:var(--amber);margin-top:3px">✏️ Edytowano ${formatDate(e.at)}: ${e.changes.join('; ')}</div>`).join('');
+}
+
 function renderPartHistory(partId) {
   const entries = magazynHistoria.filter(h => h.partId === partId).sort((a, b) => b.date.localeCompare(a.date));
   const el = document.getElementById('partHistoryList');
@@ -6368,9 +6417,58 @@ function renderPartHistory(partId) {
       <div style="flex:1">
         <div class="cal-event-name">${h.type === 'przyjecie' ? '+ ' : '- '}${h.qty} szt. ${h.note ? ('· ' + h.note) : ''}</div>
         <div class="cal-event-date">${formatDate(h.date)}</div>
+        ${histEditsHtml(h)}
       </div>
+      <button onclick="openHistEdit('${h.id}')" style="background:none;border:none;font-size:18px;cursor:pointer" title="Edytuj wpis">✏️</button>
     </div>
   `).join('');
+}
+
+// ── Edycja wpisu historii magazynu ──
+let editingHistId = null;
+function openHistEdit(id) {
+  const h = magazynHistoria.find(x => x.id === id);
+  if (!h) return;
+  editingHistId = id;
+  const p = magazyn.find(x => x.id === h.partId);
+  document.getElementById('hePart').textContent = p ? `${p.number}${p.name ? ' - ' + p.name : ''}` : 'Część usunięta z magazynu';
+  document.getElementById('heType').textContent = h.type === 'przyjecie' ? 'Przyjęcie (+)' : 'Wydanie (-)';
+  document.getElementById('heDate').value = h.date || '';
+  document.getElementById('heQty').value = h.qty;
+  document.getElementById('heNote').value = h.note || '';
+  openModal('modalHistEdit');
+}
+
+function saveHistEdit() {
+  const h = magazynHistoria.find(x => x.id === editingHistId);
+  if (!h) return;
+  const newDate = document.getElementById('heDate').value || h.date;
+  const newQty = parseInt(document.getElementById('heQty').value);
+  const newNote = document.getElementById('heNote').value.trim();
+  if (!(newQty >= 0)) { showToast('Podaj poprawną ilość', true); return; }
+  const changes = [];
+  if (newQty !== h.qty) changes.push(`ilość ${h.qty} → ${newQty}`);
+  if (newDate !== h.date) changes.push(`data ${formatDate(h.date)} → ${formatDate(newDate)}`);
+  if ((h.note || '') !== newNote) changes.push(`notatka „${h.note || ''}” → „${newNote}”`);
+  if (!changes.length) { closeModal('modalHistEdit'); return; }
+  // zmiana ilości koryguje stan magazynowy części
+  if (newQty !== h.qty) {
+    const part = magazyn.find(x => x.id === h.partId);
+    if (part) {
+      const diff = newQty - h.qty;
+      part.qty += h.type === 'przyjecie' ? diff : -diff;
+      saveMagazyn();
+      changes.push(`stan części: ${part.qty} szt.`);
+    }
+  }
+  h.qty = newQty; h.date = newDate; h.note = newNote;
+  h.edits = (h.edits || []).concat([{ at: localDateStr(new Date()), changes }]);
+  saveMagazynHistoria();
+  closeModal('modalHistEdit');
+  if (editingPartId) renderPartHistory(editingPartId);
+  if (document.getElementById('modalMagazynDziennik') && document.getElementById('modalMagazynDziennik').classList.contains('open')) renderMagazynDziennik();
+  renderMagazyn();
+  showToast('✅ Zapisano zmianę wpisu');
 }
 
 function savePart() {
@@ -6387,6 +6485,7 @@ function savePart() {
     const oldQty = p.qty;
     const newQty = oldQty + delta;
     p.number = number; p.name = name; p.qty = newQty; p.minStock = minStock; p.priceBuy = priceBuy; p.priceGross = priceGross;
+    if (delta > 0 && newQty > 0) p.toOrder = false;
     if (delta !== 0) {
       magazynHistoria.push({ id: genId(), date: localDateStr(new Date()), partId: p.id, type: delta > 0 ? 'przyjecie' : 'wydanie', qty: Math.abs(delta), note: delta > 0 ? 'Przyjęcie towaru' : 'Ręczna korekta stanu' });
       saveMagazynHistoria();
@@ -6762,6 +6861,84 @@ async function computeLocationGroups(onProgress) {
   });
   groups.sort((a, b) => b.length - a.length);
   return { groups, skipped: withAddress.length - geocoded.length };
+}
+
+// ── Mapa klienta: inni klienci w promieniu 7 km ──
+const NEARBY_KM = 7;
+let clientMapInstance = null;
+
+async function openClientMap(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  const name = c.clientType === 'firma' && c.companyName ? c.companyName : c.name;
+  document.getElementById('cmTitle').textContent = `🗺 ${name} - okolica ${NEARBY_KM} km`;
+  const listEl = document.getElementById('cmList');
+  listEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)">🔍 Szukam adresu na mapie...</div>';
+  openModal('modalClientMap');
+  if (!c.lat || !c.lng) {
+    const coords = await geocodeAddress(c.street || '', c.city || '');
+    if (coords) { c.lat = coords.lat; c.lng = coords.lng; save(); }
+  }
+  if (!c.lat || !c.lng) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Nie udało się znaleźć tego adresu na mapie - sprawdź, czy jest wpisany poprawnie.</div>';
+    return;
+  }
+  const withAddr = clients.filter(o => o.id !== c.id && (o.street || o.city));
+  const located = withAddr.filter(o => o.lat && o.lng);
+  const nearby = located
+    .map(o => ({ client: o, km: haversineKm(c.lat, c.lng, o.lat, o.lng) }))
+    .filter(x => x.km <= NEARBY_KM)
+    .sort((a, b) => a.km - b.km);
+  const missing = withAddr.length - located.length;
+  const COL_OVERDUE = '#f97316', COL_DONE = '#22a064', COL_OTHER = '#3b82f6';
+  const nm = o => o.clientType === 'firma' && o.companyName ? o.companyName : (o.name || '—');
+  // zielony: przegląd w ostatnich 3 miesiącach; pomarańczowy: przeterminowany; reszta: niebieski
+  const recentDone = o => { if (!o.lastService) return false; const d = (new Date() - new Date(o.lastService)) / 86400000; return d >= 0 && d <= 92; };
+  const colorOf = o => recentDone(o) ? COL_DONE : (getStatus(o) === 'overdue' ? COL_OVERDUE : COL_OTHER);
+  const infoOf = (o, km) => {
+    const st = getStatus(o);
+    const kotel = [o.boilerModel, o.boilerSerial ? 'nr ser. ' + o.boilerSerial : ''].filter(Boolean).join(', ');
+    return `<div style="min-width:180px;font-size:13px;line-height:1.4"><b style="font-size:14px">${nm(o)}</b>` +
+      `<br>${[o.street, o.zip, o.city].filter(Boolean).join(', ') || 'Brak adresu'}` +
+      (o.phone ? `<br>📞 <a href="tel:${o.phone}">${o.phone}</a>` : '') +
+      (kotel ? `<br>🔥 ${kotel}` : '') +
+      `<br>🔧 Ostatni serwis: ${o.lastService ? formatDate(o.lastService) : 'brak'}` +
+      (o.nextService ? `<br>📅 Termin: ${formatDate(o.nextService)}` : '') +
+      `<br>Status: <b>${statusLabel(st)}</b>` +
+      (km != null ? `<br>📍 ${km.toFixed(1)} km od wybranego klienta` : '') +
+      `<br><a href="#" onclick="closeModal('modalClientMap');showDetail('${o.id}');return false" style="display:inline-block;margin-top:6px;font-weight:700">Otwórz profil →</a></div>`;
+  };
+
+  listEl.innerHTML = (nearby.length ? `<div style="font-weight:700;margin-bottom:8px">W promieniu ${NEARBY_KM} km: ${nearby.length}</div>` : `<div style="padding:12px;text-align:center;color:var(--muted)">Brak innych klientów w promieniu ${NEARBY_KM} km.</div>`) +
+    nearby.map(({ client: o, km }) => {
+      const st = getStatus(o);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);cursor:pointer" onclick="closeModal('modalClientMap');showDetail('${o.id}')">
+        <div style="width:12px;height:12px;border-radius:50%;background:${colorOf(o)};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0"><div style="font-weight:600">${nm(o)}</div>
+          <div style="font-size:12px;color:var(--muted)">${[o.street, o.city].filter(Boolean).join(', ')}${o.phone ? ' · ' + o.phone : ''}</div>
+          <div style="font-size:11px;color:var(--muted)">${statusLabel(st)}${o.nextService ? ' · termin ' + formatDate(o.nextService) : ''}</div></div>
+        <div style="font-weight:700;flex-shrink:0">${km.toFixed(1)} km</div>
+      </div>`;
+    }).join('') +
+    (missing > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:10px">⚠️ ${missing} klientów nie ma jeszcze współrzędnych adresu, więc nie są tu uwzględnieni. Otwórz raz „Grupy wg lokalizacji", żeby je wyszukać.</div>` : '');
+
+  setTimeout(() => {
+    const container = document.getElementById('cmMapContainer');
+    if (!container || typeof L === 'undefined') return;
+    if (clientMapInstance) { clientMapInstance.remove(); clientMapInstance = null; }
+    clientMapInstance = L.map(container, { attributionControl: false }).setView([c.lat, c.lng], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(clientMapInstance);
+    const circle = L.circle([c.lat, c.lng], { radius: NEARBY_KM * 1000, color: '#666', weight: 1, fillOpacity: 0.05 }).addTo(clientMapInstance);
+    // wybrany klient: duża ciemna kropka z obwódką, żeby nie myliła się z kolorami statusu
+    L.circleMarker([c.lat, c.lng], { radius: 13, color: '#111', weight: 4, fillColor: colorOf(c), fillOpacity: 1 })
+      .addTo(clientMapInstance).bindPopup(infoOf(c, null));
+    nearby.forEach(({ client: o, km }) => {
+      L.circleMarker([o.lat, o.lng], { radius: 10, color: '#fff', weight: 2, fillColor: colorOf(o), fillOpacity: 0.95 })
+        .addTo(clientMapInstance).bindPopup(infoOf(o, km));
+    });
+    clientMapInstance.fitBounds(circle.getBounds(), { padding: [10, 10] });
+    clientMapInstance.invalidateSize();
+  }, 120);
 }
 
 let toScheduleEntries = JSON.parse(localStorage.getItem('serwis_to_schedule') || '[]');
@@ -7602,19 +7779,21 @@ function renderMagazynDziennik() {
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px">${label}</div>
         <div style="font-size:11px;color:var(--muted)">${formatDate(h.date)}${h.note ? ' · ' + h.note : ''}</div>
+        ${histEditsHtml(h)}
       </div>
       <div style="font-weight:800;font-size:15px;color:${isIn ? 'var(--green)' : 'var(--red)'}">${isIn ? '+' : '-'}${h.qty}</div>
+      <button onclick="openHistEdit('${h.id}')" style="background:none;border:none;font-size:18px;cursor:pointer" title="Edytuj wpis">✏️</button>
     </div>`;
   }).join('');
 }
 
 function openReorderModal() {
-  const low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  const low = magazyn.filter(needsReorder);
   if (!low.length) {
     showToast('✅ Wszystko w normie, nic do zamówienia!');
     return;
   }
-  selectedReorderIds = new Set();
+  selectedReorderIds = new Set(low.filter(p => p.toOrder).map(p => p.id));
   const searchEl = document.getElementById('reorderSearch');
   if (searchEl) searchEl.value = '';
   renderReorderList();
@@ -7624,7 +7803,7 @@ function openReorderModal() {
 function renderReorderList() {
   const q = (document.getElementById('reorderSearch')?.value || '').trim().toLowerCase();
   const qNorm = normalizeForSearch(q);
-  let low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  let low = magazyn.filter(needsReorder);
   if (q) low = low.filter(p => normalizeForSearch(p.number).includes(qNorm) || (p.name || '').toLowerCase().includes(q));
   const listEl = document.getElementById('reorderList');
   if (!low.length) {
@@ -7654,7 +7833,7 @@ function toggleReorderItem(id) {
 }
 
 function reorderSelectAll(state) {
-  const low = magazyn.filter(p => p.qty <= (p.minStock || 0));
+  const low = magazyn.filter(needsReorder);
   selectedReorderIds = state ? new Set(low.map(p => p.id)) : new Set();
   renderReorderList();
 }
